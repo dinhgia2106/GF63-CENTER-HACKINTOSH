@@ -206,6 +206,28 @@ struct MenuBarPanel: View {
                     miniMetric("FAN", monitor.snapshot.fanRPM.map { "\(Int($0))" } ?? "N/A", R3Theme.violet)
                 }
 
+                Picker("Profile", selection: Binding(
+                    get: { model.profile },
+                    set: { model.selectProfile($0) }
+                )) {
+                    ForEach(PerformanceProfile.allCases) { profile in
+                        Text(profile.rawValue).tag(profile)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Toggle("Cooler Boost", isOn: Binding(
+                    get: { model.coolerBoost },
+                    set: { model.setCoolerBoost($0) }
+                ))
+                .toggleStyle(.switch)
+
+                if !monitor.snapshot.controlAvailability.isWritable {
+                    Label("Preferences saved locally · firmware unchanged", systemImage: "lock.shield.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+
                 Button {
                     openWindow(id: "dashboard")
                     NSApp.activate(ignoringOtherApps: true)
@@ -252,13 +274,33 @@ struct SettingsView: View {
         ZStack {
             AmbientBackground()
             GlassSection("General", subtitle: "Personalize how R3 Control starts", symbol: "gearshape.fill") {
-                Toggle("Launch R3 Control at login", isOn: $model.launchAtLogin)
-                Text("Login-item support will be connected to SMAppService in a signed release build.")
+                Toggle("Launch R3 Control at login", isOn: Binding(
+                    get: { model.launchAtLogin },
+                    set: { model.setLaunchAtLogin($0) }
+                ))
+                Text("Uses the native macOS login-item service; no background helper is installed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if let error = model.loginItemError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(R3Theme.warning)
+                }
+                Divider()
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Control preferences")
+                            .font(.callout.weight(.medium))
+                        Text("Restore Comfort, Auto, 50% Basic and the default curve.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Reset") { model.resetControls() }
+                }
             }
             .padding(24)
         }
-        .frame(width: 520, height: 240)
+        .frame(width: 540, height: 340)
     }
 }

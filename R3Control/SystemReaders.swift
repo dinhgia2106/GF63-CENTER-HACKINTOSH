@@ -1,4 +1,5 @@
 import Foundation
+import IOKit
 import IOKit.ps
 import Darwin.Mach
 
@@ -161,12 +162,36 @@ enum BatteryReader {
         let state = description[kIOPSPowerSourceStateKey] as? String
         let charging = (description[kIOPSIsChargingKey] as? Bool) ?? false
 
+        let registry = registryDetails()
         return BatterySample(
             percent: percent,
             isCharging: charging,
             isConnected: state == kIOPSACPowerValue,
-            healthPercent: nil,
-            cycleCount: nil
+            healthPercent: registry.healthPercent,
+            cycleCount: registry.cycleCount
         )
+    }
+
+    private static func registryDetails() -> (healthPercent: Double?, cycleCount: Int?) {
+        let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
+        guard service != IO_OBJECT_NULL else { return (nil, nil) }
+        defer { IOObjectRelease(service) }
+
+        var unmanaged: Unmanaged<CFMutableDictionary>?
+        guard IORegistryEntryCreateCFProperties(service, &unmanaged, kCFAllocatorDefault, 0) == KERN_SUCCESS,
+              let properties = unmanaged?.takeRetainedValue() as? [String: Any] else {
+            return (nil, nil)
+        }
+
+        let cycleCount = (properties["CycleCount"] as? NSNumber)?.intValue
+        let design = (properties["DesignCapacity"] as? NSNumber)?.doubleValue
+        let maximum = (properties["MaxCapacity"] as? NSNumber)?.doubleValue
+        let health: Double?
+        if let design, let maximum, design > 0 {
+            health = min(max(maximum / design, 0), 1)
+        } else {
+            health = nil
+        }
+        return (health, cycleCount)
     }
 }

@@ -31,6 +31,12 @@ final class HardwareMonitor: ObservableObject {
         let battery = BatteryReader.sample()
         let fanCount = smc.uint8("FNum") ?? 0
         let fanRPM = fanCount > 0 ? smc.double("F0Ac") : nil
+        let fanMaximumRPM = fanCount > 0 ? smc.double("F0Mx") : nil
+        let fanPercent = fanRPM.flatMap { current in
+            fanMaximumRPM.flatMap { maximum in
+                maximum > 0 ? min(max(current / maximum * 100, 0), 100) : nil
+            }
+        }
 
         let next = HardwareSnapshot(
             timestamp: .now,
@@ -41,13 +47,13 @@ final class HardwareMonitor: ObservableObject {
             memoryTotal: memory.total,
             diskUsed: disk.used,
             diskTotal: disk.total,
-            fanPercent: nil,
+            fanPercent: fanPercent,
             fanRPM: fanRPM,
             batteryPercent: battery.percent,
             batteryIsCharging: battery.isCharging,
             batteryIsConnected: battery.isConnected,
-            batteryHealthPercent: snapshot.batteryHealthPercent,
-            batteryCycleCount: snapshot.batteryCycleCount,
+            batteryHealthPercent: battery.healthPercent,
+            batteryCycleCount: battery.cycleCount,
             ecFirmware: nil,
             controlAvailability: .monitorOnly(reason: "R3EC bridge is unavailable")
         )

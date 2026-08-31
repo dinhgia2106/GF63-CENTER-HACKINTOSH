@@ -39,4 +39,4 @@ Do not publish serial numbers, MAC addresses, MLB/ROM values or other unique SMB
 
 ## Current safety boundary
 
-Version 0.1.0 is read-only. Fan, performance and charge controls stay disabled unless a future R3EC bridge positively matches a validated firmware profile. Unknown systems remain fully usable for whatever monitoring data macOS and AppleSMC expose.
+Version 0.1.0 is read-only at the hardware boundary. Fan, performance and charge preferences can be edited and saved locally, but no setting is written to the EC unless a future R3EC bridge positively matches a validated firmware profile. Unknown systems remain fully usable for whatever monitoring data macOS and AppleSMC expose.

@@ -11,6 +11,9 @@
 
 ## 0.2 — hardware identification
 
+- Persistent performance, fan-mode, Cooler Boost and charge-limit preferences.
+- Editable Advanced fan curve with monotonic point validation.
+- Native launch at login.
 - Read EC firmware identity without writing.
 - Capture and compare EC state in macOS and Windows/MSI Center.
 - Confirm fan percentage, temperature, profile and Cooler Boost offsets on this exact unit.
@@ -26,10 +29,10 @@
 
 ## 0.4 — controlled cooling
 
-- Auto, Silent, Advanced and Cooler Boost modes.
+- Auto, Silent, Basic, Advanced and Cooler Boost modes.
 - Eco, Comfort, Sport and Turbo profiles.
 - Per-profile fan curves after hardware validation.
-- Launch at login and persistent profile restore.
+- Apply the existing saved controls through the validated R3EC bridge.
 - Notifications for critical temperature and bad battery state.
 
 ## Acceptance gates before enabling writes

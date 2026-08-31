@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DiagnosticsView: View {
     @EnvironmentObject private var monitor: HardwareMonitor
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         ScrollView {
@@ -50,11 +51,22 @@ struct DiagnosticsView: View {
                     tint: gateTint
                 ) {
                     HStack(spacing: 14) {
-                        controlTile("Current mode", monitor.snapshot.controlAvailability.isWritable ? "Controls ready" : "Monitor only", "switch.2", gateTint)
+                        controlTile("Saved profile", model.profile.rawValue, "speedometer", R3Theme.violet)
+                        controlTile(
+                            "Saved fan mode",
+                            model.coolingMode == .basic ? "Basic · \(model.manualFanPercent)%" : model.coolingMode.rawValue,
+                            "switch.2",
+                            R3Theme.cyan
+                        )
                         controlTile("EC writes", monitor.snapshot.controlAvailability.isWritable ? "Allowlisted" : "Blocked", "memorychip", gateTint)
                         controlTile("Failure mode", "Firmware Auto", "arrow.uturn.backward.circle", R3Theme.cyan)
-                        controlTile("Thermal authority", "System firmware", "thermometer.medium", R3Theme.accent)
                     }
+
+                    Text(monitor.snapshot.controlAvailability.isWritable
+                         ? "The displayed configuration may be applied only through the validated bridge."
+                         : "Saved controls are preferences only; the current hardware state is still owned by system firmware.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 10) {
