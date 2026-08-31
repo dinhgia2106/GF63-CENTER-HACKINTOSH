@@ -13,34 +13,33 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 - SwiftUI dashboard and menu-bar panel.
 - WidgetKit small and medium desktop widgets.
 - Native Liquid Glass surfaces on macOS 26 with a Material fallback on macOS 14 and 15.
-- Persistent Eco, Comfort, Sport and Turbo preferences with Auto, Silent, fixed-speed Basic and Advanced fan modes.
-- Editable, monotonic Advanced fan curve and a saved Cooler Boost preference.
-- Saved 60%, 80% and 100% charge-limit preferences.
+- Persistent Eco, Comfort, Sport and Turbo app presets with hardware-backed Auto, fixed-speed Basic and Advanced fan modes.
+- Editable, monotonic Advanced CPU fan curve and hardware-backed Cooler Boost.
 - Native launch-at-login support through `SMAppService`.
-- Cooling, performance and battery hardware writes guarded by a read-only safety gate.
+- A minimal R3EC kernel bridge with an exact firmware allowlist, verified writes and automatic Firmware-Auto rollback.
 
 The packaged ad-hoc build is available at `Build/R3Control.app`. Open it once, then add **R3 System Status** from the macOS desktop widget gallery.
 
 The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xcode compiles the generated macOS icon set from `Assets.xcassets`.
 
-See `MACHINE_AUDIT.md` for compatibility and testing guidance, and `ROADMAP.md` for the guarded path to real fan control.
+See `MACHINE_AUDIT.md` for compatibility/testing guidance and `R3EC/README.md` for the OpenCore installation and recovery procedure.
 
-No Embedded Controller bytes are written in version `0.1.0`. Control choices are saved locally so the complete control surface can be configured and tested, but hardware writes remain disabled until R3EC detects a firmware profile that is explicitly supported and validated for the current GF63 variant. The app always labels that distinction in the UI.
+Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. Battery charging, Silent mode and MSI Shift/performance registers are intentionally not written; their controls are omitted or labelled as local presets.
 
 ## Build
 
-Open `R3Control.xcodeproj`, select the `R3Control` scheme and run. To use the desktop widget from a signed build, assign your Apple Development team to both targets and configure a shared App Group; the prototype also retains a local shared-preferences fallback for unsigned builds.
+Run `Scripts/build.sh` to produce the ad-hoc signed app and unsigned OpenCore kext in `build/Products`. R3EC accepts clients only from the active local login session and exposes no arbitrary EC address API.
 
 Command-line verification:
 
 ```sh
-xcodebuild -project R3Control.xcodeproj -scheme R3Control -configuration Debug -derivedDataPath ../../work/R3ControlDerivedData CODE_SIGNING_ALLOWED=NO build
+Scripts/build.sh
 ```
 
 ## Safety
 
-The SMC bridge is read-only. Future EC support must use an exact firmware allowlist, masked writes, verification, rate limiting, sleep/crash rollback and a firmware-Auto thermal fallback.
+The AppleSMC bridge remains read-only. R3EC exposes no arbitrary address API: it permits only known commands, validates ranges, reads every write back, debounces sliders, and restores Auto with Cooler Boost off when the client disconnects. Keep a known-good EFI/USB boot entry before installing any experimental kext.
 
 ## Licensing
 
-Project code is provided under GPL-2.0-or-later. The AppleSMC structure layout in `SMCBridge.c` follows the public implementation used by smcFanControl; attribution and license notice are retained there.
+Project code is provided under GPL-2.0-or-later. The AppleSMC structure layout in `SMCBridge.c` follows the public implementation used by smcFanControl. The MS-16R3 fan profile was cross-checked against [YoyPa/isw](https://github.com/YoyPa/isw).

@@ -39,4 +39,6 @@ Do not publish serial numbers, MAC addresses, MLB/ROM values or other unique SMB
 
 ## Current safety boundary
 
-Version 0.1.0 is read-only at the hardware boundary. Fan, performance and charge preferences can be edited and saved locally, but no setting is written to the EC unless a future R3EC bridge positively matches a validated firmware profile. Unknown systems remain fully usable for whatever monitoring data macOS and AppleSMC expose.
+Version 0.2.0 includes real control for MS-16R3 only. `R3EC.kext` reads the EC identity from `0xA0...0xAB` and enables its fixed command allowlist only for `16R3EMS1.100` and `16R3EMS1.102`. Unknown firmware remains monitor-only.
+
+Supported writes are CPU fan Auto/Basic/Advanced and Cooler Boost. Battery charging, Silent mode, MSI Shift/performance profiles, GPU fan curves, arbitrary EC access and unknown firmware are blocked. Each write is verified, curve failures restore Auto, and closing/crashing the client restores Auto with Cooler Boost disabled.

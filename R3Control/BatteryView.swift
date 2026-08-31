@@ -2,7 +2,6 @@ import SwiftUI
 
 struct BatteryView: View {
     @EnvironmentObject private var monitor: HardwareMonitor
-    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         ScrollView {
@@ -24,7 +23,6 @@ struct BatteryView: View {
                     warningCard(issue)
                 }
 
-                chargeLimitCard
             }
             .padding(.horizontal, 30)
             .padding(.top, 26)
@@ -130,35 +128,6 @@ struct BatteryView: View {
         }
         .padding(20)
         .r3Glass(cornerRadius: 22, tint: R3Theme.warning)
-    }
-
-    private var chargeLimitCard: some View {
-        GlassSection(
-            "Charge limit",
-            subtitle: "Preserve long-term battery health with a validated EC profile",
-            symbol: "battery.100percent.bolt",
-            tint: R3Theme.good
-        ) {
-            Picker("Charge limit", selection: Binding(
-                get: { model.chargeLimit },
-                set: { model.setChargeLimit($0) }
-            )) {
-                Text("60%  Saver").tag(60)
-                Text("80%  Balanced").tag(80)
-                Text("100%  Full").tag(100)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
-
-            HStack(spacing: 8) {
-                Image(systemName: monitor.snapshot.controlAvailability.isWritable ? "checkmark.shield.fill" : "externaldrive.badge.exclamationmark")
-                Text(monitor.snapshot.controlAvailability.isWritable
-                     ? "Ready for the validated firmware-specific charge profile."
-                     : "Preference saved locally. The firmware charge limit is unchanged until R3EC is validated.")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
     }
 
     private var telemetryIssue: String? {

@@ -1,0 +1,78 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A20000000000000000000001 /* R3ECBridge.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000001 /* R3ECBridge.cpp */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		B20000000000000000000001 /* R3ECBridge.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = R3ECBridge.cpp; sourceTree = "<group>"; };
+		B20000000000000000000002 /* R3ECBridge.hpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = R3ECBridge.hpp; sourceTree = "<group>"; };
+		B20000000000000000000003 /* R3ECShared.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = R3ECShared.h; sourceTree = "<group>"; };
+		B20000000000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B20000000000000000000005 /* R3EC.kext */ = {isa = PBXFileReference; explicitFileType = wrapper.kernel-extension; includeInIndex = 0; path = R3EC.kext; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E20000000000000000000002 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F20000000000000000000002 = {isa = PBXGroup; children = (F20000000000000000000003 /* R3EC */, F20000000000000000000004 /* Products */, ); sourceTree = "<group>"; };
+		F20000000000000000000003 /* R3EC */ = {isa = PBXGroup; path = R3EC; sourceTree = "<group>"; children = (B20000000000000000000001, B20000000000000000000002, B20000000000000000000003, B20000000000000000000004, ); };
+		F20000000000000000000004 /* Products */ = {isa = PBXGroup; name = Products; sourceTree = "<group>"; children = (B20000000000000000000005, ); };
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D20000000000000000000001 /* R3EC */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F20000000000000000000020 /* Build configuration list for PBXNativeTarget R3EC */;
+			buildPhases = (E20000000000000000000001 /* Sources */, E20000000000000000000002 /* Frameworks */, );
+			buildRules = ();
+			dependencies = ();
+			name = R3EC;
+			productName = R3EC;
+			productReference = B20000000000000000000005 /* R3EC.kext */;
+			productType = "com.apple.product-type.kernel-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F20000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 2650; TargetAttributes = {D20000000000000000000001 = {CreatedOnToolsVersion = 26.5; }; }; };
+			buildConfigurationList = F20000000000000000000010 /* Build configuration list for PBXProject R3EC */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (Base, en, );
+			mainGroup = F20000000000000000000002;
+			productRefGroup = F20000000000000000000004 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (D20000000000000000000001 /* R3EC */, );
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E20000000000000000000001 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A20000000000000000000001, ); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		F20000000000000000000030 /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = NO; MACOSX_DEPLOYMENT_TARGET = 26.5; SDKROOT = macosx; }; name = Debug; };
+		F20000000000000000000031 /* Project Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = NO; MACOSX_DEPLOYMENT_TARGET = 26.5; SDKROOT = macosx; }; name = Release; };
+		F20000000000000000000032 /* Target Debug */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = x86_64; CLANG_CXX_LANGUAGE_STANDARD = "gnu++17"; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEBUG_INFORMATION_FORMAT = dwarf; GCC_ENABLE_CPP_EXCEPTIONS = NO; GCC_ENABLE_CPP_RTTI = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = R3EC/Info.plist; KERNEL_EXTENSION_API_ONLY = YES; MACOSX_DEPLOYMENT_TARGET = 26.5; MARKETING_VERSION = 0.2.0; MODULE_NAME = com_grazt_driver_R3EC; MODULE_VERSION = 0.2.0; PRODUCT_BUNDLE_IDENTIFIER = com.grazt.driver.R3EC; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; WRAPPER_EXTENSION = kext; }; name = Debug; };
+		F20000000000000000000033 /* Target Release */ = {isa = XCBuildConfiguration; buildSettings = {ARCHS = x86_64; CLANG_CXX_LANGUAGE_STANDARD = "gnu++17"; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = NO; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEAD_CODE_STRIPPING = NO; GCC_ENABLE_CPP_EXCEPTIONS = NO; GCC_ENABLE_CPP_RTTI = NO; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = R3EC/Info.plist; KERNEL_EXTENSION_API_ONLY = YES; MACOSX_DEPLOYMENT_TARGET = 26.5; MARKETING_VERSION = 0.2.0; MODULE_NAME = com_grazt_driver_R3EC; MODULE_VERSION = 0.2.0; PRODUCT_BUNDLE_IDENTIFIER = com.grazt.driver.R3EC; PRODUCT_NAME = "$(TARGET_NAME)"; SKIP_INSTALL = YES; WRAPPER_EXTENSION = kext; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F20000000000000000000010 /* Build configuration list for PBXProject R3EC */ = {isa = XCConfigurationList; buildConfigurations = (F20000000000000000000030, F20000000000000000000031, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		F20000000000000000000020 /* Build configuration list for PBXNativeTarget R3EC */ = {isa = XCConfigurationList; buildConfigurations = (F20000000000000000000032, F20000000000000000000033, ); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+	};
+	rootObject = F20000000000000000000001 /* Project object */;
+}

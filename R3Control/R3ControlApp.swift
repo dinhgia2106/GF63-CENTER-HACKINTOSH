@@ -218,7 +218,10 @@ struct MenuBarPanel: View {
 
                 Toggle("Cooler Boost", isOn: Binding(
                     get: { model.coolerBoost },
-                    set: { model.setCoolerBoost($0) }
+                    set: {
+                        model.setCoolerBoost($0)
+                        monitor.setCoolerBoost($0)
+                    }
                 ))
                 .toggleStyle(.switch)
 

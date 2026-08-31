@@ -7,10 +7,13 @@ final class HardwareMonitor: ObservableObject {
     @Published private(set) var snapshot = HardwareSnapshot.placeholder
     @Published private(set) var history: [HardwareSnapshot] = []
     @Published private(set) var lastError: String?
+    @Published private(set) var lastControlMessage: String?
 
     private let smc = SMCReader()
+    private let ec = R3ECClient()
     private let cpu = CPULoadReader()
     private var timer: AnyCancellable?
+    private var pendingCoolingApply: Task<Void, Never>?
 
     func start() {
         guard timer == nil else { return }
@@ -23,39 +26,55 @@ final class HardwareMonitor: ObservableObject {
     func stop() {
         timer?.cancel()
         timer = nil
+        pendingCoolingApply?.cancel()
+        pendingCoolingApply = nil
+        if snapshot.controlAvailability.isWritable {
+            _ = ec.restoreAuto()
+        }
+        ec.close()
     }
 
     func refresh() {
         let memory = MemoryReader.sample()
         let disk = DiskReader.sample()
         let battery = BatteryReader.sample()
+        let ecResult = ec.read()
+        let ecReading = ecResult.reading
         let fanCount = smc.uint8("FNum") ?? 0
-        let fanRPM = fanCount > 0 ? smc.double("F0Ac") : nil
+        let smcFanRPM = fanCount > 0 ? smc.double("F0Ac") : nil
         let fanMaximumRPM = fanCount > 0 ? smc.double("F0Mx") : nil
-        let fanPercent = fanRPM.flatMap { current in
+        let smcFanPercent = smcFanRPM.flatMap { current in
             fanMaximumRPM.flatMap { maximum in
                 maximum > 0 ? min(max(current / maximum * 100, 0), 100) : nil
             }
         }
+        let availability: ControlAvailability
+        if let ecReading {
+            availability = ecReading.writable
+                ? .available(firmware: ecReading.firmware)
+                : .monitorOnly(reason: "unsupported EC firmware \(ecReading.firmware)")
+        } else {
+            availability = .monitorOnly(reason: "R3EC kext is not loaded or the app is not entitled")
+        }
 
         let next = HardwareSnapshot(
             timestamp: .now,
-            cpuTemperature: smc.double("TC0P") ?? smc.double("TC0D"),
+            cpuTemperature: ecReading?.cpuTemperature ?? smc.double("TC0P") ?? smc.double("TC0D"),
             cpuPackagePower: smc.double("PC0C") ?? smc.double("PCPR"),
             cpuLoad: cpu.sample(),
             memoryUsed: memory.used,
             memoryTotal: memory.total,
             diskUsed: disk.used,
             diskTotal: disk.total,
-            fanPercent: fanPercent,
-            fanRPM: fanRPM,
+            fanPercent: ecReading?.fanPercent ?? smcFanPercent,
+            fanRPM: ecReading?.fanRPM ?? smcFanRPM,
             batteryPercent: battery.percent,
             batteryIsCharging: battery.isCharging,
             batteryIsConnected: battery.isConnected,
             batteryHealthPercent: battery.healthPercent,
             batteryCycleCount: battery.cycleCount,
-            ecFirmware: nil,
-            controlAvailability: .monitorOnly(reason: "R3EC bridge is unavailable")
+            ecFirmware: ecReading?.firmware,
+            controlAvailability: availability
         )
 
         snapshot = next
@@ -63,5 +82,69 @@ final class HardwareMonitor: ObservableObject {
         if history.count > 300 { history.removeFirst(history.count - 300) }
         SharedSnapshotStore.save(next)
         WidgetCenter.shared.reloadTimelines(ofKind: "R3StatusWidget")
+    }
+
+    func applyCooling(_ configuration: ControlConfiguration) {
+        pendingCoolingApply?.cancel()
+        pendingCoolingApply = nil
+
+        let result: Int32
+        switch configuration.coolingMode {
+        case .auto:
+            result = ec.setFanMode(.auto)
+        case .silent:
+            lastError = "Silent mode is not validated for MS-16R3 and remains blocked."
+            lastControlMessage = nil
+            return
+        case .basic:
+            result = ec.setFixedFanSpeed(configuration.manualFanPercent)
+        case .advanced:
+            result = ec.setFanCurve(configuration.fanCurve)
+        }
+        guard finish(result, action: "Fan mode \(configuration.coolingMode.rawValue)") else { return }
+        _ = finish(ec.setCoolerBoost(configuration.coolerBoost), action: "Cooler Boost")
+        refresh()
+    }
+
+    func scheduleCooling(_ configuration: ControlConfiguration) {
+        pendingCoolingApply?.cancel()
+        pendingCoolingApply = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch {
+                return
+            }
+            self?.applyCooling(configuration)
+        }
+    }
+
+    func setCoolerBoost(_ enabled: Bool) {
+        if finish(ec.setCoolerBoost(enabled), action: enabled ? "Cooler Boost enabled" : "Cooler Boost disabled") {
+            refresh()
+        }
+    }
+
+    func applySavedConfiguration(_ configuration: ControlConfiguration) {
+        applyCooling(configuration)
+    }
+
+    func restoreFirmwareAuto() {
+        pendingCoolingApply?.cancel()
+        pendingCoolingApply = nil
+        if finish(ec.restoreAuto(), action: "Firmware Auto restored") {
+            refresh()
+        }
+    }
+
+    @discardableResult
+    private func finish(_ result: Int32, action: String) -> Bool {
+        guard result == 0 else {
+            lastError = "\(action) failed: \(R3ECClient.describe(result))."
+            lastControlMessage = nil
+            return false
+        }
+        lastError = nil
+        lastControlMessage = "\(action) applied and verified by EC read-back."
+        return true
     }
 }

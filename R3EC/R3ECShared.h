@@ -1,0 +1,53 @@
+#ifndef R3_EC_SHARED_H
+#define R3_EC_SHARED_H
+
+#include <stdint.h>
+
+#define R3_EC_SERVICE_NAME "R3ECBridge"
+
+enum R3ECSelector : uint32_t {
+    R3ECGetStatus = 0,
+    R3ECSetFanMode = 1,
+    R3ECSetFixedFanSpeed = 2,
+    R3ECSetCoolerBoost = 3,
+    R3ECSetChargeLimit = 4,
+    R3ECSetFanCurve = 5,
+    R3ECRestoreFirmwareAuto = 6,
+    R3ECSelectorCount
+};
+
+enum R3ECFanMode : uint8_t {
+    R3ECFanModeAuto = 0,
+    R3ECFanModeSilent = 1,
+    R3ECFanModeBasic = 2,
+    R3ECFanModeAdvanced = 3
+};
+
+enum R3ECCapability : uint32_t {
+    R3ECCapabilityTelemetry = 1u << 0,
+    R3ECCapabilityFanMode = 1u << 1,
+    R3ECCapabilityFixedFan = 1u << 2,
+    R3ECCapabilityFanCurve = 1u << 3,
+    R3ECCapabilityCoolerBoost = 1u << 4,
+    R3ECCapabilityChargeLimit = 1u << 5
+};
+
+typedef struct __attribute__((packed)) {
+    uint32_t protocolVersion;
+    uint32_t capabilities;
+    char firmware[16];
+    uint8_t cpuTemperature;
+    uint8_t fanPercent;
+    uint16_t fanRPM;
+    uint8_t fanModeRaw;
+    uint8_t coolerBoost;
+    uint8_t chargeLimit;
+    uint8_t writable;
+} R3ECStatus;
+
+typedef struct __attribute__((packed)) {
+    uint8_t temperatures[6];
+    uint8_t speeds[6];
+} R3ECFanCurve;
+
+#endif

@@ -41,6 +41,7 @@ struct DiagnosticsView: View {
                         availabilityRow("Package power", monitor.snapshot.cpuPackagePower != nil)
                         availabilityRow("Fan telemetry", monitor.snapshot.fanRPM != nil || monitor.snapshot.fanPercent != nil)
                         availabilityRow("Battery", monitor.snapshot.batteryPercent != nil)
+                        row("EC firmware", monitor.snapshot.ecFirmware ?? "R3EC not loaded", "memorychip", gateTint)
                     }
                 }
 
@@ -63,7 +64,7 @@ struct DiagnosticsView: View {
                     }
 
                     Text(monitor.snapshot.controlAvailability.isWritable
-                         ? "The displayed configuration may be applied only through the validated bridge."
+                         ? "The displayed configuration is sent through R3EC and accepted only after EC read-back verification."
                          : "Saved controls are preferences only; the current hardware state is still owned by system firmware.")
                         .font(.caption)
                         .foregroundStyle(.secondary)

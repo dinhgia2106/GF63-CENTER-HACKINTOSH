@@ -20,7 +20,7 @@ struct CoolingView: View {
 
                 GlassSection(
                     "Performance profile",
-                    subtitle: "Choose the balance between acoustics and responsiveness",
+                    subtitle: "Saved app preset only; MSI Shift writes remain blocked until validated",
                     symbol: "speedometer",
                     tint: R3Theme.violet
                 ) {
@@ -40,9 +40,12 @@ struct CoolingView: View {
                     ) {
                         Picker("Fan mode", selection: Binding(
                             get: { model.coolingMode },
-                            set: { model.setCoolingMode($0) }
+                            set: {
+                                model.setCoolingMode($0)
+                                monitor.applyCooling(model.configuration)
+                            }
                         )) {
-                            ForEach(CoolingMode.allCases) { mode in
+                            ForEach(CoolingMode.allCases.filter { $0 != .silent }) { mode in
                                 Text(mode.rawValue).tag(mode)
                             }
                         }
@@ -58,9 +61,12 @@ struct CoolingView: View {
                                 Slider(
                                     value: Binding(
                                         get: { Double(model.manualFanPercent) },
-                                        set: { model.setManualFanSpeed(Int($0.rounded())) }
+                                        set: {
+                                            model.setManualFanSpeed(Int($0.rounded()))
+                                            monitor.scheduleCooling(model.configuration)
+                                        }
                                     ),
-                                    in: 20...100,
+                                    in: 35...100,
                                     step: 1
                                 )
                                 Text("\(model.manualFanPercent)%")
@@ -74,7 +80,10 @@ struct CoolingView: View {
 
                         Toggle(isOn: Binding(
                             get: { model.coolerBoost },
-                            set: { model.setCoolerBoost($0) }
+                            set: {
+                                model.setCoolerBoost($0)
+                                monitor.setCoolerBoost($0)
+                            }
                         )) {
                             HStack(spacing: 12) {
                                 Image(systemName: "fan.badge.automatic")
@@ -136,7 +145,10 @@ struct CoolingView: View {
                         FanCurveEditor(
                             points: model.fanCurve,
                             isEnabled: model.coolingMode == .advanced,
-                            onChange: model.setFanSpeed
+                            onChange: {
+                                model.setFanSpeed($0, at: $1)
+                                monitor.scheduleCooling(model.configuration)
+                            }
                         )
                         .frame(width: 330)
                     }
@@ -148,10 +160,24 @@ struct CoolingView: View {
                         )
                         .foregroundStyle(.secondary)
                         Spacer()
-                        Button("Reset curve") { model.resetFanCurve() }
+                        Button("Reset curve") {
+                            model.resetFanCurve()
+                            monitor.applyCooling(model.configuration)
+                        }
                             .disabled(model.coolingMode != .advanced)
                     }
                     .font(.caption)
+                }
+
+                if let message = monitor.lastControlMessage {
+                    Label(message, systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(R3Theme.good)
+                }
+                if let error = monitor.lastError {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(R3Theme.warning)
                 }
             }
             .padding(.horizontal, 30)
@@ -182,7 +208,23 @@ struct CoolingView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            StatusPill(text: controlsEnabled ? "R3EC connected" : "Saved locally", tint: gateTint)
+            if controlsEnabled {
+                VStack(alignment: .trailing, spacing: 8) {
+                    Button("Apply saved controls") {
+                        monitor.applySavedConfiguration(model.configuration)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Restore Firmware Auto") {
+                        model.setCoolingMode(.auto)
+                        model.setCoolerBoost(false)
+                        monitor.restoreFirmwareAuto()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
+                }
+            } else {
+                StatusPill(text: "Saved locally", tint: gateTint)
+            }
         }
         .padding(20)
         .r3Glass(cornerRadius: 24, tint: gateTint)
@@ -339,7 +381,7 @@ private struct FanCurveEditor: View {
                             get: { Double(points[index].percent) },
                             set: { onChange(Int($0.rounded()), index) }
                         ),
-                        in: 0...100,
+                        in: 35...100,
                         step: 1
                     )
                     Text("\(point.percent)%")

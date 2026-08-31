@@ -17,12 +17,12 @@ struct ControlConfiguration: Codable, Equatable, Sendable {
     var chargeLimit: Int
 
     static let defaultFanCurve = [
-        FanCurvePoint(temperature: 45, percent: 20),
-        FanCurvePoint(temperature: 55, percent: 30),
-        FanCurvePoint(temperature: 65, percent: 42),
-        FanCurvePoint(temperature: 75, percent: 58),
-        FanCurvePoint(temperature: 85, percent: 78),
-        FanCurvePoint(temperature: 95, percent: 100)
+        FanCurvePoint(temperature: 55, percent: 38),
+        FanCurvePoint(temperature: 64, percent: 42),
+        FanCurvePoint(temperature: 73, percent: 45),
+        FanCurvePoint(temperature: 76, percent: 50),
+        FanCurvePoint(temperature: 82, percent: 55),
+        FanCurvePoint(temperature: 88, percent: 62)
     ]
 
     static let `default` = ControlConfiguration(
@@ -95,13 +95,9 @@ final class AppModel: ObservableObject {
     var coolerBoost: Bool { configuration.coolerBoost }
     var manualFanPercent: Int { configuration.manualFanPercent }
     var fanCurve: [FanCurvePoint] { configuration.fanCurve }
-    var chargeLimit: Int { configuration.chargeLimit }
 
     func selectProfile(_ profile: PerformanceProfile) {
         configuration.profile = profile
-        if configuration.coolingMode != .advanced {
-            configuration.fanCurve = Self.curve(for: profile)
-        }
         persist()
     }
 
@@ -117,13 +113,14 @@ final class AppModel: ObservableObject {
     }
 
     func setManualFanSpeed(_ percent: Int) {
-        configuration.manualFanPercent = min(max(percent, 20), 100)
+        configuration.manualFanPercent = min(max(percent, 35), 100)
         persist()
     }
 
     func setFanSpeed(_ percent: Int, at index: Int) {
         guard configuration.fanCurve.indices.contains(index) else { return }
-        let lowerBound = index == 0 ? 0 : configuration.fanCurve[index - 1].percent
+        let minimumSafeSpeed = index == configuration.fanCurve.count - 1 ? 62 : 35
+        let lowerBound = max(minimumSafeSpeed, index == 0 ? 35 : configuration.fanCurve[index - 1].percent)
         let upperBound = index == configuration.fanCurve.count - 1
             ? 100
             : configuration.fanCurve[index + 1].percent
@@ -132,13 +129,7 @@ final class AppModel: ObservableObject {
     }
 
     func resetFanCurve() {
-        configuration.fanCurve = Self.curve(for: configuration.profile)
-        persist()
-    }
-
-    func setChargeLimit(_ limit: Int) {
-        guard [60, 80, 100].contains(limit) else { return }
-        configuration.chargeLimit = limit
+        configuration.fanCurve = ControlConfiguration.defaultFanCurve
         persist()
     }
 
@@ -174,24 +165,16 @@ final class AppModel: ObservableObject {
 
     private static func isValid(_ configuration: ControlConfiguration) -> Bool {
         [60, 80, 100].contains(configuration.chargeLimit)
-            && (20...100).contains(configuration.manualFanPercent)
-            && configuration.fanCurve.count >= 2
-            && configuration.fanCurve.allSatisfy { (0...100).contains($0.percent) }
+            && configuration.coolingMode != .silent
+            && (35...100).contains(configuration.manualFanPercent)
+            && configuration.fanCurve.count == 6
+            && configuration.fanCurve.allSatisfy {
+                (45...95).contains($0.temperature) && (35...100).contains($0.percent)
+            }
+            && (configuration.fanCurve.last?.percent ?? 0) >= 62
             && zip(configuration.fanCurve, configuration.fanCurve.dropFirst()).allSatisfy {
                 $0.temperature < $1.temperature && $0.percent <= $1.percent
             }
     }
 
-    private static func curve(for profile: PerformanceProfile) -> [FanCurvePoint] {
-        let speeds: [Int]
-        switch profile {
-        case .eco: speeds = [15, 22, 32, 45, 65, 100]
-        case .comfort: speeds = [20, 30, 42, 58, 78, 100]
-        case .sport: speeds = [28, 38, 52, 68, 86, 100]
-        case .turbo: speeds = [35, 48, 62, 76, 90, 100]
-        }
-        return zip([45, 55, 65, 75, 85, 95], speeds).map {
-            FanCurvePoint(temperature: $0, percent: $1)
-        }
-    }
 }

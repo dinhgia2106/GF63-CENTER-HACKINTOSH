@@ -57,6 +57,8 @@ typedef struct {
 
 static io_connect_t r3Connection = IO_OBJECT_NULL;
 static pthread_mutex_t r3Lock = PTHREAD_MUTEX_INITIALIZER;
+static io_connect_t r3ECConnection = IO_OBJECT_NULL;
+static pthread_mutex_t r3ECLock = PTHREAD_MUTEX_INITIALIZER;
 
 static uint32_t r3FourCC(const char *text) {
     return ((uint32_t)(unsigned char)text[0] << 24) |
@@ -162,4 +164,117 @@ void R3SMCClose(void) {
         r3Connection = IO_OBJECT_NULL;
     }
     pthread_mutex_unlock(&r3Lock);
+}
+
+static kern_return_t r3ECOpenLocked(void) {
+    if (r3ECConnection != IO_OBJECT_NULL) return KERN_SUCCESS;
+    io_service_t service = IOServiceGetMatchingService(
+        kIOMainPortDefault,
+        IOServiceMatching(R3_EC_SERVICE_NAME)
+    );
+    if (service == IO_OBJECT_NULL) return kIOReturnNotFound;
+    kern_return_t result = IOServiceOpen(service, mach_task_self(), 0, &r3ECConnection);
+    IOObjectRelease(service);
+    return result;
+}
+
+bool R3ECIsAvailable(void) {
+    pthread_mutex_lock(&r3ECLock);
+    bool available = r3ECOpenLocked() == KERN_SUCCESS;
+    pthread_mutex_unlock(&r3ECLock);
+    return available;
+}
+
+int32_t R3ECReadStatus(R3ECStatus *status) {
+    if (!status) return kIOReturnBadArgument;
+    pthread_mutex_lock(&r3ECLock);
+    kern_return_t result = r3ECOpenLocked();
+    if (result == KERN_SUCCESS) {
+        size_t outputSize = sizeof(*status);
+        result = IOConnectCallStructMethod(
+            r3ECConnection,
+            R3ECGetStatus,
+            NULL,
+            0,
+            status,
+            &outputSize
+        );
+        if (result == KERN_SUCCESS && outputSize != sizeof(*status)) result = kIOReturnBadMessageID;
+    }
+    pthread_mutex_unlock(&r3ECLock);
+    return result;
+}
+
+static int32_t r3ECScalarCall(uint32_t selector, uint64_t value) {
+    pthread_mutex_lock(&r3ECLock);
+    kern_return_t result = r3ECOpenLocked();
+    if (result == KERN_SUCCESS) {
+        result = IOConnectCallScalarMethod(r3ECConnection, selector, &value, 1, NULL, NULL);
+    }
+    pthread_mutex_unlock(&r3ECLock);
+    return result;
+}
+
+int32_t R3ECApplyFanMode(uint8_t mode) {
+    return r3ECScalarCall(R3ECSetFanMode, mode);
+}
+
+int32_t R3ECApplyFixedFanSpeed(uint8_t percent) {
+    return r3ECScalarCall(R3ECSetFixedFanSpeed, percent);
+}
+
+int32_t R3ECApplyCoolerBoost(bool enabled) {
+    return r3ECScalarCall(R3ECSetCoolerBoost, enabled ? 1 : 0);
+}
+
+int32_t R3ECApplyFanCurve(const R3ECFanCurve *curve) {
+    if (!curve) return kIOReturnBadArgument;
+    pthread_mutex_lock(&r3ECLock);
+    kern_return_t result = r3ECOpenLocked();
+    if (result == KERN_SUCCESS) {
+        result = IOConnectCallStructMethod(
+            r3ECConnection,
+            R3ECSetFanCurve,
+            curve,
+            sizeof(*curve),
+            NULL,
+            NULL
+        );
+    }
+    pthread_mutex_unlock(&r3ECLock);
+    return result;
+}
+
+int32_t R3ECApplyFanCurveValues(const uint8_t temperatures[6], const uint8_t speeds[6]) {
+    if (!temperatures || !speeds) return kIOReturnBadArgument;
+    R3ECFanCurve curve = {0};
+    memcpy(curve.temperatures, temperatures, sizeof(curve.temperatures));
+    memcpy(curve.speeds, speeds, sizeof(curve.speeds));
+    return R3ECApplyFanCurve(&curve);
+}
+
+int32_t R3ECRestoreAuto(void) {
+    pthread_mutex_lock(&r3ECLock);
+    kern_return_t result = r3ECOpenLocked();
+    if (result == KERN_SUCCESS) {
+        result = IOConnectCallScalarMethod(
+            r3ECConnection,
+            R3ECRestoreFirmwareAuto,
+            NULL,
+            0,
+            NULL,
+            NULL
+        );
+    }
+    pthread_mutex_unlock(&r3ECLock);
+    return result;
+}
+
+void R3ECClose(void) {
+    pthread_mutex_lock(&r3ECLock);
+    if (r3ECConnection != IO_OBJECT_NULL) {
+        IOServiceClose(r3ECConnection);
+        r3ECConnection = IO_OBJECT_NULL;
+    }
+    pthread_mutex_unlock(&r3ECLock);
 }
