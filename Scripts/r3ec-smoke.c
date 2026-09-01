@@ -37,8 +37,9 @@ static bool read_status(const char *label, R3ECStatus *status) {
 int main(int argc, char **argv) {
     const bool testBasic = argc == 2 && strcmp(argv[1], "--test-basic") == 0;
     const bool testControls = argc == 2 && strcmp(argv[1], "--test-controls") == 0;
-    if (argc > 2 || (argc == 2 && !testBasic && !testControls)) {
-        fprintf(stderr, "usage: %s [--test-basic|--test-controls]\n", argv[0]);
+    const bool testLiveControls = argc == 2 && strcmp(argv[1], "--test-live-controls") == 0;
+    if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls)) {
+        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls]\n", argv[0]);
         return 64;
     }
 
@@ -47,7 +48,7 @@ int main(int argc, char **argv) {
         R3ECClose();
         return 1;
     }
-    if (!testBasic && !testControls) {
+    if (!testBasic && !testControls && !testLiveControls) {
         R3ECClose();
         return 0;
     }
@@ -56,6 +57,14 @@ int main(int argc, char **argv) {
         fprintf(stderr, "write test blocked: unexpected firmware or read-only bridge\n");
         R3ECClose();
         return 2;
+    }
+
+    bool silentVerified = true;
+    if (testControls) {
+        int32_t silentResult = R3ECApplyFanMode(R3ECFanModeSilent);
+        R3ECStatus silent = {0};
+        silentVerified = silentResult == kIOReturnSuccess && read_status("silent", &silent) &&
+            (silent.fanModeRaw & 0xFC) == 0x1C;
     }
 
     int32_t result = R3ECApplyFixedFanSpeed(50);
@@ -71,25 +80,13 @@ int main(int argc, char **argv) {
     const bool basicRead = read_status("basic50", &basic);
     const bool basicVerified = basicRead && (basic.fanModeRaw & 0xFC) == 0x4C;
 
-    bool advancedVerified = true;
     bool boostVerified = true;
-    if (testControls && basicVerified) {
-        const uint8_t temperatures[6] = {55, 64, 73, 76, 82, 88};
-        const uint8_t speeds[6] = {38, 42, 45, 50, 55, 62};
-        result = R3ECApplyFanCurveValues(temperatures, speeds);
-        if (result != kIOReturnSuccess) {
-            fprintf(stderr, "Advanced curve failed: 0x%08x\n", result);
-            advancedVerified = false;
-        } else {
-            R3ECStatus advanced = {0};
-            advancedVerified = read_status("advanced", &advanced) &&
-                (advanced.fanModeRaw & 0xFC) == 0x8C;
-        }
-
-        result = R3ECApplyCoolerBoost(true);
+    if ((testControls || testLiveControls) && basicVerified) {
+        result = R3ECApplyFanMode(R3ECFanModeAuto);
+        if (result == kIOReturnSuccess) result = R3ECApplyCoolerBoost(true);
         R3ECStatus boostOn = {0};
         boostVerified = result == kIOReturnSuccess && read_status("boost-on", &boostOn) &&
-            boostOn.coolerBoost;
+            (boostOn.fanModeRaw & 0xFC) == 0x0C && boostOn.coolerBoost;
         result = R3ECApplyCoolerBoost(false);
         R3ECStatus boostOff = {0};
         boostVerified = boostVerified && result == kIOReturnSuccess &&
@@ -109,13 +106,17 @@ int main(int argc, char **argv) {
     const bool autoVerified = afterRead && (after.fanModeRaw & 0xFC) == 0x0C && !after.coolerBoost;
     R3ECClose();
 
-    if (!basicVerified || !advancedVerified || !boostVerified || !autoVerified) {
-        fprintf(stderr, "readback verification failed (basic=%d advanced=%d boost=%d auto=%d)\n",
-                basicVerified, advancedVerified, boostVerified, autoVerified);
+    if (!silentVerified || !basicVerified || !boostVerified || !autoVerified) {
+        fprintf(stderr, "readback verification failed (silent=%d custom=%d boost=%d auto=%d)\n",
+                silentVerified, basicVerified, boostVerified, autoVerified);
         return 5;
     }
-    puts(testControls
-        ? "PASS: Basic, Advanced curve and Cooler Boost were verified; Firmware Auto was restored."
-        : "PASS: Basic 50% was verified and firmware Auto was restored.");
+    if (testControls) {
+        puts("PASS: Silent, Custom and Boost were verified; Firmware Auto was restored.");
+    } else if (testLiveControls) {
+        puts("PASS: Custom and Boost were verified; Firmware Auto was restored.");
+    } else {
+        puts("PASS: Basic 50% was verified and firmware Auto was restored.");
+    }
     return 0;
 }

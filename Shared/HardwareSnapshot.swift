@@ -69,8 +69,8 @@ enum PerformanceProfile: String, CaseIterable, Identifiable, Codable, Sendable {
 enum CoolingMode: String, CaseIterable, Identifiable, Codable, Sendable {
     case auto = "Auto"
     case silent = "Silent"
-    case basic = "Basic"
-    case advanced = "Advanced"
+    case boost = "Boost"
+    case custom = "Custom"
 
     var id: String { rawValue }
 }

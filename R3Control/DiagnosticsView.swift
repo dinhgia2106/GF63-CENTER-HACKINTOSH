@@ -55,7 +55,7 @@ struct DiagnosticsView: View {
                         controlTile("Saved profile", model.profile.rawValue, "speedometer", R3Theme.violet)
                         controlTile(
                             "Saved fan mode",
-                            model.coolingMode == .basic ? "Basic · \(model.manualFanPercent)%" : model.coolingMode.rawValue,
+                            model.coolingMode == .custom ? "Custom · \(model.manualFanPercent)%" : model.coolingMode.rawValue,
                             "switch.2",
                             R3Theme.cyan
                         )

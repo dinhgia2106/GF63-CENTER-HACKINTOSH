@@ -8,7 +8,7 @@ R3EC is the privileged, firmware-gated bridge used by R3 Control. It attaches to
 - Exact EC firmware allowlist: `16R3EMS1.100`, `16R3EMS1.102`.
 - Unknown or unreadable firmware: telemetry only; every write returns `kIOReturnNotPermitted`.
 
-The allowlisted commands are Auto, Basic fixed fan, Advanced CPU fan curve and Cooler Boost. Battery charging, Silent and MSI Shift/performance modes are blocked.
+The user-facing behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Battery charging and MSI Shift/performance modes are blocked.
 
 ## Safety behavior
 

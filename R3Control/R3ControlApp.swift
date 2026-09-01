@@ -216,14 +216,39 @@ struct MenuBarPanel: View {
                 }
                 .pickerStyle(.segmented)
 
-                Toggle("Cooler Boost", isOn: Binding(
-                    get: { model.coolerBoost },
+                Picker("Fan behavior", selection: Binding(
+                    get: { model.coolingMode },
                     set: {
-                        model.setCoolerBoost($0)
-                        monitor.setCoolerBoost($0)
+                        model.setCoolingMode($0)
+                        monitor.applyCooling(model.configuration)
                     }
-                ))
-                .toggleStyle(.switch)
+                )) {
+                    ForEach(CoolingMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if model.coolingMode == .custom {
+                    HStack(spacing: 10) {
+                        Image(systemName: "fan.fill")
+                            .foregroundStyle(R3Theme.cyan)
+                        Slider(
+                            value: Binding(
+                                get: { Double(model.manualFanPercent) },
+                                set: {
+                                    model.setManualFanSpeed(Int($0.rounded()))
+                                    monitor.scheduleCooling(model.configuration)
+                                }
+                            ),
+                            in: 35...100,
+                            step: 1
+                        )
+                        Text("\(model.manualFanPercent)%")
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .frame(width: 38, alignment: .trailing)
+                    }
+                }
 
                 if !monitor.snapshot.controlAvailability.isWritable {
                     Label("Preferences saved locally · firmware unchanged", systemImage: "lock.shield.fill")
@@ -294,7 +319,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Control preferences")
                             .font(.callout.weight(.medium))
-                        Text("Restore Comfort, Auto, 50% Basic and the default curve.")
+                        Text("Restore Comfort, Auto and 50% Custom fan speed.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

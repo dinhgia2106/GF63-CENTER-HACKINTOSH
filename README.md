@@ -13,8 +13,8 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 - SwiftUI dashboard and menu-bar panel.
 - WidgetKit small and medium desktop widgets.
 - Native Liquid Glass surfaces on macOS 26 with a Material fallback on macOS 14 and 15.
-- Persistent Eco, Comfort, Sport and Turbo app presets with hardware-backed Auto, fixed-speed Basic and Advanced fan modes.
-- Editable, monotonic Advanced CPU fan curve and hardware-backed Cooler Boost.
+- Persistent Eco, Comfort, Sport and Turbo app presets with hardware-backed Auto, Silent, Boost and Custom fan behaviors.
+- A single 35–100% Custom speed slider; selecting Boost controls Cooler Boost directly.
 - Native launch-at-login support through `SMAppService`.
 - A minimal R3EC kernel bridge with an exact firmware allowlist, verified writes and automatic Firmware-Auto rollback.
 
@@ -24,7 +24,7 @@ The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xco
 
 See `MACHINE_AUDIT.md` for compatibility/testing guidance and `R3EC/README.md` for the OpenCore installation and recovery procedure.
 
-Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. Battery charging, Silent mode and MSI Shift/performance registers are intentionally not written; their controls are omitted or labelled as local presets.
+Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. Battery charging and MSI Shift/performance registers are intentionally not written; their controls are omitted or labelled as local presets.
 
 ## Build
 

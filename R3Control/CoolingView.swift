@@ -34,7 +34,7 @@ struct CoolingView: View {
                 HStack(alignment: .top, spacing: 16) {
                     GlassSection(
                         "Fan behavior",
-                        subtitle: "Firmware governor",
+                        subtitle: "Auto, quiet, maximum airflow or a fixed custom speed",
                         symbol: "wind",
                         tint: R3Theme.cyan
                     ) {
@@ -45,18 +45,18 @@ struct CoolingView: View {
                                 monitor.applyCooling(model.configuration)
                             }
                         )) {
-                            ForEach(CoolingMode.allCases.filter { $0 != .silent }) { mode in
+                            ForEach(CoolingMode.allCases) { mode in
                                 Text(mode.rawValue).tag(mode)
                             }
                         }
                         .labelsHidden()
                         .pickerStyle(.segmented)
 
-                        if model.coolingMode == .basic {
+                        if model.coolingMode == .custom {
                             HStack(spacing: 12) {
                                 Image(systemName: "fan.fill")
                                     .foregroundStyle(R3Theme.cyan)
-                                Text("Fixed speed")
+                                Text("Fan speed")
                                     .font(.callout.weight(.medium))
                                 Slider(
                                     value: Binding(
@@ -75,29 +75,6 @@ struct CoolingView: View {
                             }
                             .transition(.opacity.combined(with: .move(edge: .top)))
                         }
-
-                        Divider().opacity(0.5)
-
-                        Toggle(isOn: Binding(
-                            get: { model.coolerBoost },
-                            set: {
-                                model.setCoolerBoost($0)
-                                monitor.setCoolerBoost($0)
-                            }
-                        )) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "fan.badge.automatic")
-                                    .font(.title3)
-                                    .foregroundStyle(R3Theme.cyan)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Cooler Boost").font(.headline)
-                                    Text("Maximum airflow with automatic rollback")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                        .toggleStyle(.switch)
                     }
 
                     GlassSection(
@@ -119,54 +96,6 @@ struct CoolingView: View {
                             .foregroundStyle(.secondary)
                     }
                     .frame(width: 245)
-                }
-
-                GlassSection(
-                    "Fan curve",
-                    subtitle: model.coolingMode == .advanced
-                        ? "Adjust a monotonic curve; adjacent points stay within safe ordering"
-                        : "Choose Advanced mode to edit the saved custom curve",
-                    symbol: "point.topleft.down.curvedto.point.bottomright.up",
-                    tint: R3Theme.accent
-                ) {
-                    HStack(alignment: .top, spacing: 24) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            FanCurvePreview(points: model.fanCurve)
-                                .frame(height: 168)
-                            HStack {
-                                Label("Temperature", systemImage: "thermometer.medium")
-                                Spacer()
-                                Label("Fan output", systemImage: "fan.fill")
-                            }
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        }
-
-                        FanCurveEditor(
-                            points: model.fanCurve,
-                            isEnabled: model.coolingMode == .advanced,
-                            onChange: {
-                                model.setFanSpeed($0, at: $1)
-                                monitor.scheduleCooling(model.configuration)
-                            }
-                        )
-                        .frame(width: 330)
-                    }
-
-                    HStack {
-                        Label(
-                            controlsEnabled ? "Curve is ready for the validated bridge" : "Saved locally; hardware remains on firmware control",
-                            systemImage: controlsEnabled ? "checkmark.shield.fill" : "externaldrive.badge.exclamationmark"
-                        )
-                        .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Reset curve") {
-                            model.resetFanCurve()
-                            monitor.applyCooling(model.configuration)
-                        }
-                            .disabled(model.coolingMode != .advanced)
-                    }
-                    .font(.caption)
                 }
 
                 if let message = monitor.lastControlMessage {
@@ -216,7 +145,6 @@ struct CoolingView: View {
                     .buttonStyle(.borderedProminent)
                     Button("Restore Firmware Auto") {
                         model.setCoolingMode(.auto)
-                        model.setCoolerBoost(false)
                         monitor.restoreFirmwareAuto()
                     }
                     .buttonStyle(.borderless)
@@ -310,87 +238,5 @@ struct CoolingView: View {
         case .sport: return R3Theme.violet
         case .turbo: return R3Theme.accent
         }
-    }
-}
-
-private struct FanCurvePreview: View {
-    let points: [FanCurvePoint]
-
-    var body: some View {
-        GeometryReader { proxy in
-            ZStack {
-                VStack(spacing: 0) {
-                    ForEach(0..<4, id: \.self) { _ in
-                        Divider().opacity(0.14)
-                        Spacer()
-                    }
-                }
-
-                Path { path in
-                    guard let first = points.first, let last = points.last else { return }
-                    let temperatureSpan = max(last.temperature - first.temperature, 1)
-                    func position(_ point: FanCurvePoint) -> CGPoint {
-                        let x = Double(point.temperature - first.temperature) / Double(temperatureSpan)
-                        let y = 1 - (Double(point.percent) / 100)
-                        return CGPoint(x: x * proxy.size.width, y: y * proxy.size.height)
-                    }
-                    path.move(to: position(first))
-                    for point in points.dropFirst() {
-                        path.addLine(to: position(point))
-                    }
-                }
-                .stroke(
-                    LinearGradient(colors: [R3Theme.cyan, R3Theme.accent], startPoint: .leading, endPoint: .trailing),
-                    style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
-                )
-                .blur(radius: 0.15)
-
-                ForEach(points) { point in
-                    let firstTemperature = points.first?.temperature ?? point.temperature
-                    let lastTemperature = points.last?.temperature ?? point.temperature + 1
-                    let span = max(lastTemperature - firstTemperature, 1)
-                    Circle()
-                        .fill(R3Theme.accent)
-                        .overlay(Circle().stroke(.white.opacity(0.8), lineWidth: 1.5))
-                        .frame(width: 9, height: 9)
-                        .position(
-                            x: Double(point.temperature - firstTemperature) / Double(span) * proxy.size.width,
-                            y: (1 - Double(point.percent) / 100) * proxy.size.height
-                        )
-                }
-            }
-        }
-    }
-}
-
-private struct FanCurveEditor: View {
-    let points: [FanCurvePoint]
-    let isEnabled: Bool
-    let onChange: (Int, Int) -> Void
-
-    var body: some View {
-        VStack(spacing: 9) {
-            ForEach(Array(points.enumerated()), id: \.element.id) { index, point in
-                HStack(spacing: 10) {
-                    Text("\(point.temperature)°")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .frame(width: 34, alignment: .trailing)
-                    Slider(
-                        value: Binding(
-                            get: { Double(points[index].percent) },
-                            set: { onChange(Int($0.rounded()), index) }
-                        ),
-                        in: 35...100,
-                        step: 1
-                    )
-                    Text("\(point.percent)%")
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .frame(width: 38, alignment: .trailing)
-                }
-            }
-        }
-        .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.45)
     }
 }

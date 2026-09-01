@@ -41,4 +41,4 @@ Do not publish serial numbers, MAC addresses, MLB/ROM values or other unique SMB
 
 Version 0.2.0 includes real control for MS-16R3 only. `R3EC.kext` reads the EC identity from `0xA0...0xAB` and enables its fixed command allowlist only for `16R3EMS1.100` and `16R3EMS1.102`. Unknown firmware remains monitor-only.
 
-Supported writes are CPU fan Auto/Basic/Advanced and Cooler Boost. Battery charging, Silent mode, MSI Shift/performance profiles, GPU fan curves, arbitrary EC access and unknown firmware are blocked. Each write is verified, curve failures restore Auto, and closing/crashing the client restores Auto with Cooler Boost disabled.
+Supported user-facing behaviors are CPU fan Auto, Silent, Boost and Custom fixed speed. Battery charging, MSI Shift/performance profiles, arbitrary EC access and unknown firmware are blocked. Each write is verified, failures restore Auto, and closing/crashing the client restores Auto with Cooler Boost disabled.

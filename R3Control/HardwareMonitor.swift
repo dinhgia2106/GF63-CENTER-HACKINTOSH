@@ -88,21 +88,23 @@ final class HardwareMonitor: ObservableObject {
         pendingCoolingApply?.cancel()
         pendingCoolingApply = nil
 
-        let result: Int32
+        var result: Int32
         switch configuration.coolingMode {
         case .auto:
-            result = ec.setFanMode(.auto)
+            result = ec.setCoolerBoost(false)
+            if result == 0 { result = ec.setFirmwareAuto() }
         case .silent:
-            lastError = "Silent mode is not validated for MS-16R3 and remains blocked."
-            lastControlMessage = nil
-            return
-        case .basic:
-            result = ec.setFixedFanSpeed(configuration.manualFanPercent)
-        case .advanced:
-            result = ec.setFanCurve(configuration.fanCurve)
+            result = ec.setCoolerBoost(false)
+            if result == 0 { result = ec.setSilentMode() }
+        case .boost:
+            result = ec.setFirmwareAuto()
+            if result == 0 { result = ec.setCoolerBoost(true) }
+        case .custom:
+            result = ec.setCoolerBoost(false)
+            if result == 0 { result = ec.setFixedFanSpeed(configuration.manualFanPercent) }
         }
-        guard finish(result, action: "Fan mode \(configuration.coolingMode.rawValue)") else { return }
-        _ = finish(ec.setCoolerBoost(configuration.coolerBoost), action: "Cooler Boost")
+        if result != 0 { _ = ec.restoreAuto() }
+        guard finish(result, action: "Fan behavior \(configuration.coolingMode.rawValue)") else { return }
         refresh()
     }
 
@@ -115,12 +117,6 @@ final class HardwareMonitor: ObservableObject {
                 return
             }
             self?.applyCooling(configuration)
-        }
-    }
-
-    func setCoolerBoost(_ enabled: Bool) {
-        if finish(ec.setCoolerBoost(enabled), action: enabled ? "Cooler Boost enabled" : "Cooler Boost disabled") {
-            refresh()
         }
     }
 

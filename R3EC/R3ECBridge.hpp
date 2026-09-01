@@ -23,6 +23,7 @@ public:
     IOReturn setCoolerBoost(bool enabled);
     IOReturn setChargeLimit(uint8_t percent);
     IOReturn setFanCurve(const R3ECFanCurve *curve);
+    IOReturn setPerformanceProfile(uint8_t profile);
     IOReturn restoreFirmwareAuto();
 
 private:
@@ -53,6 +54,7 @@ public:
 private:
     R3ECBridge *bridge { nullptr };
     bool changedHardware { false };
+    bool changedPerformance { false };
 };
 
 #endif

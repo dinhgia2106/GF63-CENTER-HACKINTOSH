@@ -13,7 +13,7 @@ OSDefineMetaClassAndStructors(R3ECUserClient, IOUserClient)
 #undef super
 
 namespace {
-constexpr uint32_t kProtocolVersion = 1;
+constexpr uint32_t kProtocolVersion = 2;
 constexpr uint8_t kFirmwareStart = 0xA0;
 constexpr size_t kFirmwareLength = 12;
 constexpr uint8_t kCPUCurrentTemperature = 0x68;
@@ -24,10 +24,16 @@ constexpr uint8_t kCPUCurveTemperatureStart = 0x6A;
 constexpr uint8_t kCPUCurveSpeedStart = 0x72;
 constexpr uint8_t kFanMode = 0xF4;
 constexpr uint8_t kCoolerBoost = 0x98;
+constexpr uint8_t kPerformanceProfile = 0xF2;
 constexpr uint8_t kModeAuto = 0x0C;
+constexpr uint8_t kModeSilent = 0x1C;
 constexpr uint8_t kModeBasic = 0x4C;
 constexpr uint8_t kModeAdvanced = 0x8C;
 constexpr uint8_t kCoolerBoostMask = 0x80;
+constexpr uint8_t kPerformanceEco = 0xC2;
+constexpr uint8_t kPerformanceComfort = 0xC1;
+constexpr uint8_t kPerformanceSport = 0xC0;
+constexpr uint8_t kPerformanceTurbo = 0xC4;
 
 bool equalFirmware(const char *lhs, const char *rhs) {
     return strncmp(lhs, rhs, 15) == 0;
@@ -158,7 +164,8 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     status->capabilities = R3ECCapabilityTelemetry;
     if (firmwareAllowed) {
         status->capabilities |= R3ECCapabilityFanMode | R3ECCapabilityFixedFan |
-            R3ECCapabilityFanCurve | R3ECCapabilityCoolerBoost;
+            R3ECCapabilityFanCurve | R3ECCapabilityCoolerBoost |
+            R3ECCapabilityPerformanceProfile;
     }
     strlcpy(status->firmware, firmware, sizeof(status->firmware));
     uint8_t rpmHigh = 0, rpmLow = 0, boost = 0;
@@ -168,6 +175,7 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     if (result == kIOReturnSuccess) result = readByte(kCPUFanRPMLow, &rpmLow);
     if (result == kIOReturnSuccess) result = readByte(kFanMode, &status->fanModeRaw);
     if (result == kIOReturnSuccess) result = readByte(kCoolerBoost, &boost);
+    if (result == kIOReturnSuccess) result = readByte(kPerformanceProfile, &status->performanceProfileRaw);
     const uint16_t rpmRaw = static_cast<uint16_t>((rpmHigh << 8) | rpmLow);
     status->fanRPM = rpmRaw == 0 ? 0 : static_cast<uint16_t>(478000u / rpmRaw);
     status->coolerBoost = (boost & kCoolerBoostMask) != 0;
@@ -181,9 +189,9 @@ IOReturn R3ECBridge::setFanMode(uint8_t mode) {
     uint8_t raw = 0;
     switch (mode) {
         case R3ECFanModeAuto: raw = kModeAuto; break;
+        case R3ECFanModeSilent: raw = kModeSilent; break;
         case R3ECFanModeBasic: raw = kModeBasic; break;
         case R3ECFanModeAdvanced: raw = kModeAdvanced; break;
-        case R3ECFanModeSilent: return kIOReturnUnsupported;
         default: return kIOReturnBadArgument;
     }
     IOLockLock(lock);
@@ -249,6 +257,21 @@ IOReturn R3ECBridge::setFanCurve(const R3ECFanCurve *curve) {
     return result;
 }
 
+IOReturn R3ECBridge::setPerformanceProfile(uint8_t profile) {
+    uint8_t raw = 0;
+    switch (profile) {
+        case R3ECPerformanceEco: raw = kPerformanceEco; break;
+        case R3ECPerformanceComfort: raw = kPerformanceComfort; break;
+        case R3ECPerformanceSport: raw = kPerformanceSport; break;
+        case R3ECPerformanceTurbo: raw = kPerformanceTurbo; break;
+        default: return kIOReturnBadArgument;
+    }
+    IOLockLock(lock);
+    IOReturn result = writeByteVerified(kPerformanceProfile, raw);
+    IOLockUnlock(lock);
+    return result;
+}
+
 IOReturn R3ECBridge::restoreFirmwareAuto() {
     IOLockLock(lock);
     uint8_t boost = 0;
@@ -273,6 +296,7 @@ bool R3ECUserClient::start(IOService *provider) {
 
 IOReturn R3ECUserClient::clientClose() {
     if (changedHardware && bridge) bridge->restoreFirmwareAuto();
+    if (changedPerformance && bridge) bridge->setPerformanceProfile(R3ECPerformanceComfort);
     if (bridge) {
         bridge->release();
         bridge = nullptr;
@@ -314,9 +338,17 @@ IOReturn R3ECUserClient::externalMethod(uint32_t selector, IOExternalMethodArgum
         case R3ECRestoreFirmwareAuto:
             result = bridge->restoreFirmwareAuto();
             break;
+        case R3ECSetPerformanceProfile:
+            if (arguments->scalarInputCount != 1) return kIOReturnBadArgument;
+            result = bridge->setPerformanceProfile(static_cast<uint8_t>(arguments->scalarInput[0]));
+            break;
         default:
             return kIOReturnUnsupported;
     }
-    if (result == kIOReturnSuccess) changedHardware = selector != R3ECRestoreFirmwareAuto;
+    if (result == kIOReturnSuccess) {
+        if (selector == R3ECSetPerformanceProfile) changedPerformance = true;
+        else if (selector == R3ECRestoreFirmwareAuto) changedHardware = false;
+        else changedHardware = true;
+    }
     return result;
 }

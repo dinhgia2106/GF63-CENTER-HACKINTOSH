@@ -33,15 +33,12 @@ final class R3ECClient {
         return (reading, result)
     }
 
-    func setFanMode(_ mode: CoolingMode) -> Int32 {
-        let value: UInt8
-        switch mode {
-        case .auto: value = 0
-        case .silent: value = 1
-        case .basic: value = 2
-        case .advanced: value = 3
-        }
-        return R3ECApplyFanMode(value)
+    func setFirmwareAuto() -> Int32 {
+        R3ECApplyFanMode(0)
+    }
+
+    func setSilentMode() -> Int32 {
+        R3ECApplyFanMode(1)
     }
 
     func setFixedFanSpeed(_ percent: Int) -> Int32 {
@@ -50,17 +47,6 @@ final class R3ECClient {
 
     func setCoolerBoost(_ enabled: Bool) -> Int32 {
         R3ECApplyCoolerBoost(enabled)
-    }
-
-    func setFanCurve(_ points: [FanCurvePoint]) -> Int32 {
-        guard points.count == 6 else { return -1 }
-        let temperatures = points.map { UInt8(clamping: $0.temperature) }
-        let speeds = points.map { UInt8(clamping: $0.percent) }
-        return temperatures.withUnsafeBufferPointer { temperatureBuffer in
-            speeds.withUnsafeBufferPointer { speedBuffer in
-                R3ECApplyFanCurveValues(temperatureBuffer.baseAddress, speedBuffer.baseAddress)
-            }
-        }
     }
 
     func restoreAuto() -> Int32 {
