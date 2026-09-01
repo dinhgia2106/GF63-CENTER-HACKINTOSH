@@ -208,7 +208,10 @@ struct MenuBarPanel: View {
 
                 Picker("Profile", selection: Binding(
                     get: { model.profile },
-                    set: { model.selectProfile($0) }
+                    set: {
+                        model.selectProfile($0)
+                        monitor.setPerformanceProfile($0)
+                    }
                 )) {
                     ForEach(PerformanceProfile.allCases) { profile in
                         Text(profile.rawValue).tag(profile)

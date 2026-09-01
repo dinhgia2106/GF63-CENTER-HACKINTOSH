@@ -8,7 +8,7 @@ R3EC is the privileged, firmware-gated bridge used by R3 Control. It attaches to
 - Exact EC firmware allowlist: `16R3EMS1.100`, `16R3EMS1.102`.
 - Unknown or unreadable firmware: telemetry only; every write returns `kIOReturnNotPermitted`.
 
-The user-facing behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Battery charging and MSI Shift/performance modes are blocked.
+The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Performance profiles use the firmware's verified MSI Shift values: Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Battery charging remains blocked.
 
 ## Safety behavior
 
@@ -17,6 +17,7 @@ The user-facing behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed spee
 - Curves are limited to six increasing 45–95°C thresholds, 35–100% output, and at least 62% at the final threshold.
 - Partial curve/fixed-speed failures return to firmware Auto.
 - Closing or crashing the app closes its user client and restores firmware Auto with Cooler Boost off.
+- A client that changed performance is restored to Comfort when it disconnects.
 - The app debounces fan sliders so dragging does not flood the EC.
 
 ## OpenCore installation

@@ -20,7 +20,7 @@ struct CoolingView: View {
 
                 GlassSection(
                     "Performance profile",
-                    subtitle: "Saved app preset only; MSI Shift writes remain blocked until validated",
+                    subtitle: "Hardware-backed MSI performance policy with EC read-back",
                     symbol: "speedometer",
                     tint: R3Theme.violet
                 ) {
@@ -28,6 +28,11 @@ struct CoolingView: View {
                         ForEach(PerformanceProfile.allCases) { profile in
                             profileButton(profile)
                         }
+                    }
+                    if let active = monitor.activePerformanceProfile {
+                        Label("EC active: \(active.rawValue)", systemImage: "checkmark.shield.fill")
+                            .font(.caption)
+                            .foregroundStyle(R3Theme.good)
                     }
                 }
 
@@ -162,6 +167,7 @@ struct CoolingView: View {
         let isSelected = model.profile == profile
         return Button {
             withAnimation(.snappy) { model.selectProfile(profile) }
+            monitor.setPerformanceProfile(profile)
         } label: {
             VStack(alignment: .leading, spacing: 15) {
                 HStack {
@@ -224,10 +230,10 @@ struct CoolingView: View {
 
     private func profileHint(_ profile: PerformanceProfile) -> String {
         switch profile {
-        case .eco: return "Cool & efficient"
-        case .comfort: return "Balanced"
-        case .sport: return "Responsive"
-        case .turbo: return "Maximum"
+        case .eco: return "Lowest power & heat"
+        case .comfort: return "Balanced daily use"
+        case .sport: return "Higher performance"
+        case .turbo: return "Maximum performance"
         }
     }
 

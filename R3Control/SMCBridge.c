@@ -9,6 +9,7 @@
 #include <IOKit/IOKitLib.h>
 #include <libkern/OSByteOrder.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <string.h>
 
 #define R3_SMC_SELECTOR 2
@@ -187,6 +188,7 @@ bool R3ECIsAvailable(void) {
 
 int32_t R3ECReadStatus(R3ECStatus *status) {
     if (!status) return kIOReturnBadArgument;
+    memset(status, 0, sizeof(*status));
     pthread_mutex_lock(&r3ECLock);
     kern_return_t result = r3ECOpenLocked();
     if (result == KERN_SUCCESS) {
@@ -199,7 +201,10 @@ int32_t R3ECReadStatus(R3ECStatus *status) {
             status,
             &outputSize
         );
-        if (result == KERN_SUCCESS && outputSize != sizeof(*status)) result = kIOReturnBadMessageID;
+        const size_t legacySize = offsetof(R3ECStatus, performanceProfileRaw);
+        if (result == KERN_SUCCESS && outputSize != sizeof(*status) && outputSize != legacySize) {
+            result = kIOReturnBadMessageID;
+        }
     }
     pthread_mutex_unlock(&r3ECLock);
     return result;
@@ -225,6 +230,10 @@ int32_t R3ECApplyFixedFanSpeed(uint8_t percent) {
 
 int32_t R3ECApplyCoolerBoost(bool enabled) {
     return r3ECScalarCall(R3ECSetCoolerBoost, enabled ? 1 : 0);
+}
+
+int32_t R3ECApplyPerformanceProfile(uint8_t profile) {
+    return r3ECScalarCall(R3ECSetPerformanceProfile, profile);
 }
 
 int32_t R3ECApplyFanCurve(const R3ECFanCurve *curve) {

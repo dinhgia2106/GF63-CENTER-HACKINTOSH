@@ -20,14 +20,14 @@
 - Real Auto, Silent, Boost and Custom fixed-speed commands.
 - Per-write read-back and disconnect rollback to firmware Auto.
 - Capture and compare EC state in macOS and Windows/MSI Center.
-- Confirm fan percentage, temperature, profile and Cooler Boost offsets on this exact unit.
+- Confirm fan percentage, temperature, performance profile and Cooler Boost offsets on this exact unit.
 - Battery charge writes are out of scope for this machine.
 
 ## 0.3 — hardening and broader validation
 
 - Add sleep/wake integration and an in-kext thermal watchdog.
 - Add a bounded audit log and kernel-side rate limiting.
-- Validate MSI Shift modes with Windows reference captures.
+- Expand performance controls only after exact-firmware validation.
 - Add additional firmware only after per-version EC dumps and recovery testing.
 
 ## 0.4 — controlled cooling

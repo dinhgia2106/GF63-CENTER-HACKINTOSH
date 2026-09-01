@@ -10,7 +10,7 @@
 static void print_status(const char *label, const R3ECStatus *status) {
     printf(
         "%s firmware=%s writable=%u capabilities=0x%02x temp=%uC "
-        "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u\n",
+        "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u performance_raw=0x%02x\n",
         label,
         status->firmware,
         status->writable,
@@ -19,7 +19,8 @@ static void print_status(const char *label, const R3ECStatus *status) {
         status->fanPercent,
         status->fanRPM,
         status->fanModeRaw,
-        status->coolerBoost
+        status->coolerBoost,
+        status->performanceProfileRaw
     );
 }
 
@@ -38,8 +39,9 @@ int main(int argc, char **argv) {
     const bool testBasic = argc == 2 && strcmp(argv[1], "--test-basic") == 0;
     const bool testControls = argc == 2 && strcmp(argv[1], "--test-controls") == 0;
     const bool testLiveControls = argc == 2 && strcmp(argv[1], "--test-live-controls") == 0;
-    if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls)) {
-        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls]\n", argv[0]);
+    const bool testPerformance = argc == 2 && strcmp(argv[1], "--test-performance") == 0;
+    if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls && !testPerformance)) {
+        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls|--test-performance]\n", argv[0]);
         return 64;
     }
 
@@ -48,7 +50,7 @@ int main(int argc, char **argv) {
         R3ECClose();
         return 1;
     }
-    if (!testBasic && !testControls && !testLiveControls) {
+    if (!testBasic && !testControls && !testLiveControls && !testPerformance) {
         R3ECClose();
         return 0;
     }
@@ -57,6 +59,32 @@ int main(int argc, char **argv) {
         fprintf(stderr, "write test blocked: unexpected firmware or read-only bridge\n");
         R3ECClose();
         return 2;
+    }
+
+    if (testPerformance) {
+        const uint8_t profiles[] = {
+            R3ECPerformanceEco,
+            R3ECPerformanceComfort,
+            R3ECPerformanceSport,
+            R3ECPerformanceTurbo,
+            R3ECPerformanceComfort
+        };
+        const uint8_t expected[] = {0xC2, 0xC1, 0xC0, 0xC4, 0xC1};
+        const char *labels[] = {"eco", "comfort", "sport", "turbo", "final-comfort"};
+        bool verified = true;
+        for (size_t index = 0; index < sizeof(profiles); ++index) {
+            int32_t profileResult = R3ECApplyPerformanceProfile(profiles[index]);
+            R3ECStatus status = {0};
+            verified = verified && profileResult == kIOReturnSuccess &&
+                read_status(labels[index], &status) && status.performanceProfileRaw == expected[index];
+        }
+        R3ECClose();
+        if (!verified) {
+            fputs("performance profile readback verification failed\n", stderr);
+            return 6;
+        }
+        puts("PASS: Eco, Comfort, Sport and Turbo were verified; Comfort was restored.");
+        return 0;
     }
 
     bool silentVerified = true;

@@ -8,6 +8,7 @@ final class HardwareMonitor: ObservableObject {
     @Published private(set) var history: [HardwareSnapshot] = []
     @Published private(set) var lastError: String?
     @Published private(set) var lastControlMessage: String?
+    @Published private(set) var activePerformanceProfile: PerformanceProfile?
 
     private let smc = SMCReader()
     private let ec = R3ECClient()
@@ -40,6 +41,15 @@ final class HardwareMonitor: ObservableObject {
         let battery = BatteryReader.sample()
         let ecResult = ec.read()
         let ecReading = ecResult.reading
+        activePerformanceProfile = ecReading.flatMap { reading in
+            switch reading.performanceProfileRaw {
+            case 0xC2: return .eco
+            case 0xC1: return .comfort
+            case 0xC0: return .sport
+            case 0xC4: return .turbo
+            default: return nil
+            }
+        }
         let fanCount = smc.uint8("FNum") ?? 0
         let smcFanRPM = fanCount > 0 ? smc.double("F0Ac") : nil
         let fanMaximumRPM = fanCount > 0 ? smc.double("F0Mx") : nil
@@ -120,7 +130,15 @@ final class HardwareMonitor: ObservableObject {
         }
     }
 
+    func setPerformanceProfile(_ profile: PerformanceProfile) {
+        if finish(ec.setPerformanceProfile(profile), action: "Performance profile \(profile.rawValue)") {
+            refresh()
+        }
+    }
+
     func applySavedConfiguration(_ configuration: ControlConfiguration) {
+        setPerformanceProfile(configuration.profile)
+        guard lastError == nil else { return }
         applyCooling(configuration)
     }
 
