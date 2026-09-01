@@ -18,6 +18,7 @@
 - R3EC kernel bridge using the OS-serialized ACPI EC address space.
 - Exact allowlist for `16R3EMS1.100` and `.102`.
 - Real Auto, Silent, Boost and Custom fixed-speed commands.
+- Eco+ with verified/restorable 15 W PL1 and 25 W PL2 package limits.
 - Per-write read-back and disconnect rollback to firmware Auto.
 - Capture and compare EC state in macOS and Windows/MSI Center.
 - Confirm fan percentage, temperature, performance profile and Cooler Boost offsets on this exact unit.
@@ -33,7 +34,7 @@
 ## 0.4 — controlled cooling
 
 - Auto, Silent, Boost and Custom fan behaviors are implemented.
-- Eco, Comfort, Sport and Turbo profiles.
+- Eco+, Eco, Comfort, Sport and Turbo profiles.
 - Apply saved controls explicitly through the validated R3EC bridge.
 - Notifications for critical temperature and bad battery state.
 

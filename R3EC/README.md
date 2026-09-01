@@ -8,7 +8,7 @@ R3EC is the privileged, firmware-gated bridge used by R3 Control. It attaches to
 - Exact EC firmware allowlist: `16R3EMS1.100`, `16R3EMS1.102`.
 - Unknown or unreadable firmware: telemetry only; every write returns `kIOReturnNotPermitted`.
 
-The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Performance profiles use the firmware's verified MSI Shift values: Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Battery charging remains blocked.
+The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Performance profiles use the firmware's verified MSI Shift values: Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ adds a bounded Intel RAPL package limit (PL1 15 W, PL2 25 W), Fan Auto and Boost off. Battery charging remains blocked.
 
 ## Safety behavior
 
@@ -18,6 +18,8 @@ The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed 
 - Partial curve/fixed-speed failures return to firmware Auto.
 - Closing or crashing the app closes its user client and restores firmware Auto with Cooler Boost off.
 - A client that changed performance is restored to Comfort when it disconnects.
+- Eco+ is exposed only when package-power MSR locks are clear. It snapshots the original limits, verifies 15 W/25 W after writing, and restores the exact snapshot on exit or disconnect.
+- No voltage offset, arbitrary MSR selector or direct thermal-limit write is exposed.
 - The app debounces fan sliders so dragging does not flood the EC.
 
 ## OpenCore installation

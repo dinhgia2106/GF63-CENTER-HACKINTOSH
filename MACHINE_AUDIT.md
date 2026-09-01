@@ -41,4 +41,4 @@ Do not publish serial numbers, MAC addresses, MLB/ROM values or other unique SMB
 
 Version 0.2.0 includes real control for MS-16R3 only. `R3EC.kext` reads the EC identity from `0xA0...0xAB` and enables its fixed command allowlist only for `16R3EMS1.100` and `16R3EMS1.102`. Unknown firmware remains monitor-only.
 
-Supported user-facing controls are CPU fan Auto, Silent, Boost and Custom fixed speed, plus Eco, Comfort, Sport and Turbo performance profiles. Battery charging, arbitrary EC access and unknown firmware are blocked. Each write is verified; fan failures restore Auto, and closing/crashing the client restores fan Auto, Cooler Boost off and the Comfort performance profile.
+Supported user-facing controls are CPU fan Auto, Silent, Boost and Custom fixed speed, plus Eco+, Eco, Comfort, Sport and Turbo performance profiles. Eco+ is limited to an unlocked Intel RAPL package-power register, PL1 15 W and PL2 25 W; it does not apply a voltage offset. Battery charging, arbitrary EC/MSR access and unknown firmware are blocked. Each write is verified; closing/crashing restores the original package-power limit, fan Auto, Cooler Boost off and Comfort.

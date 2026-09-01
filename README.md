@@ -13,7 +13,7 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 - SwiftUI dashboard and menu-bar panel.
 - WidgetKit small and medium desktop widgets.
 - Native Liquid Glass surfaces on macOS 26 with a Material fallback on macOS 14 and 15.
-- Hardware-backed Eco, Comfort, Sport and Turbo performance profiles with EC read-back.
+- Hardware-backed Eco+, Eco, Comfort, Sport and Turbo performance profiles with read-back.
 - Hardware-backed Auto, Silent, Boost and Custom fan behaviors.
 - A single 35–100% Custom speed slider; selecting Boost controls Cooler Boost directly.
 - Native launch-at-login support through `SMAppService`.
@@ -25,7 +25,7 @@ The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xco
 
 See `MACHINE_AUDIT.md` for compatibility/testing guidance and `R3EC/README.md` for the OpenCore installation and recovery procedure.
 
-Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Battery charging remains intentionally blocked.
+Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ combines Eco with Fan Auto, Boost off, a 15 W sustained/25 W burst Intel package-power limit and reduced app polling. Battery charging remains intentionally blocked.
 
 ## Build
 
@@ -39,7 +39,7 @@ Scripts/build.sh
 
 ## Safety
 
-The AppleSMC bridge remains read-only. R3EC exposes no arbitrary address API: it permits only known commands, validates ranges, reads every write back, debounces sliders, and restores Auto with Cooler Boost off when the client disconnects. Keep a known-good EFI/USB boot entry before installing any experimental kext.
+The AppleSMC bridge remains read-only. R3EC exposes no arbitrary address or MSR API: it permits only known commands, validates ranges, reads every write back, debounces sliders, and restores Auto with Cooler Boost off when the client disconnects. Eco+ refuses locked RAPL registers, saves the original package-power limit and restores it exactly on exit/disconnect. Keep a known-good EFI/USB boot entry before installing any experimental kext.
 
 ## Licensing
 

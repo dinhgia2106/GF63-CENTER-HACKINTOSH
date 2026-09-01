@@ -213,12 +213,16 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     status->writable = firmwareAllowed;
     if (result == kIOReturnSuccess && firmwareAllowed) {
         bool locked = false;
+        uint16_t pl1Deciwatts = 0;
+        uint16_t pl2Deciwatts = 0;
         IOReturn powerResult = readPackagePowerLimits(
-            &status->packagePowerLimit1Deciwatts,
-            &status->packagePowerLimit2Deciwatts,
+            &pl1Deciwatts,
+            &pl2Deciwatts,
             &locked
         );
         if (powerResult == kIOReturnSuccess) {
+            status->packagePowerLimit1Deciwatts = pl1Deciwatts;
+            status->packagePowerLimit2Deciwatts = pl2Deciwatts;
             status->powerLimitLocked = locked;
             status->ecoPlusActive = ecoPlusActive;
             if (!locked) status->capabilities |= R3ECCapabilityEcoPlus;
