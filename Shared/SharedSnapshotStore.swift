@@ -1,7 +1,7 @@
 import Foundation
 
 enum SharedSnapshotStore {
-    private static let suiteName = "com.grazt.R3Control.shared"
+    static let suiteName = "group.com.grazt.R3Control"
     private static let snapshotKey = "latestHardwareSnapshot"
 
     static func save(_ snapshot: HardwareSnapshot) {
@@ -9,11 +9,11 @@ enum SharedSnapshotStore {
         UserDefaults(suiteName: suiteName)?.set(data, forKey: snapshotKey)
     }
 
-    static func load() -> HardwareSnapshot {
+    static func load() -> HardwareSnapshot? {
         guard
             let data = UserDefaults(suiteName: suiteName)?.data(forKey: snapshotKey),
             let value = try? JSONDecoder().decode(HardwareSnapshot.self, from: data)
-        else { return .placeholder }
+        else { return nil }
         return value
     }
 }

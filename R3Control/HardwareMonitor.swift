@@ -57,6 +57,15 @@ final class HardwareMonitor: ObservableObject {
             default: return nil
             }
         }
+        let activeCoolingMode = ecReading.flatMap { reading -> CoolingMode? in
+            if reading.coolerBoost { return .boost }
+            switch reading.fanModeRaw & 0xFC {
+            case 0x0C: return .auto
+            case 0x1C: return .silent
+            case 0x4C, 0x8C: return .custom
+            default: return nil
+            }
+        }
         let fanCount = smc.uint8("FNum") ?? 0
         let smcFanRPM = fanCount > 0 ? smc.double("F0Ac") : nil
         let fanMaximumRPM = fanCount > 0 ? smc.double("F0Mx") : nil
@@ -85,6 +94,8 @@ final class HardwareMonitor: ObservableObject {
             diskTotal: disk.total,
             fanPercent: ecReading?.fanPercent ?? smcFanPercent,
             fanRPM: ecReading?.fanRPM ?? smcFanRPM,
+            performanceProfile: activePerformanceProfile,
+            coolingMode: activeCoolingMode,
             batteryPercent: battery.percent,
             batteryIsCharging: battery.isCharging,
             batteryIsConnected: battery.isConnected,
@@ -98,7 +109,7 @@ final class HardwareMonitor: ObservableObject {
         history.append(next)
         if history.count > 300 { history.removeFirst(history.count - 300) }
         SharedSnapshotStore.save(next)
-        if Date.now.timeIntervalSince(lastWidgetReload) >= 30 {
+        if Date.now.timeIntervalSince(lastWidgetReload) >= 60 {
             WidgetCenter.shared.reloadTimelines(ofKind: "R3StatusWidget")
             lastWidgetReload = .now
         }

@@ -11,7 +11,7 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 - Real AppleSMC CPU temperature and package-power monitoring.
 - CPU, memory, disk and battery status.
 - SwiftUI dashboard and menu-bar panel.
-- WidgetKit small and medium desktop widgets.
+- WidgetKit small, medium and large desktop widgets with live/stale status.
 - Native Liquid Glass surfaces on macOS 26 with a Material fallback on macOS 14 and 15.
 - Hardware-backed Eco+, Eco, Comfort, Sport and Turbo performance profiles with read-back.
 - Hardware-backed Auto, Silent, Boost and Custom fan behaviors.
@@ -19,7 +19,7 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 - Native launch-at-login support through `SMAppService`.
 - A minimal R3EC kernel bridge with an exact firmware allowlist, verified writes and automatic Firmware-Auto rollback.
 
-The packaged ad-hoc build is available at `Build/R3Control.app`. Open it once, then add **R3 System Status** from the macOS desktop widget gallery.
+The packaged ad-hoc build is available at `build/Products/R3Control.app`. Open it once so the app can publish its first hardware snapshot, then add **R3 System Status** from the macOS desktop widget gallery. Clicking the widget opens R3 Control.
 
 The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xcode compiles the generated macOS icon set from `Assets.xcassets`.
 

@@ -52,6 +52,11 @@ struct MainView: View {
         }
         .navigationSplitViewStyle(.balanced)
         .tint(R3Theme.accent)
+        .onOpenURL { url in
+            guard url.scheme == "r3control" else { return }
+            model.selection = .overview
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private var sidebar: some View {

@@ -11,6 +11,8 @@ struct HardwareSnapshot: Codable, Sendable, Equatable {
     var diskTotal: UInt64
     var fanPercent: Double?
     var fanRPM: Double?
+    var performanceProfile: PerformanceProfile?
+    var coolingMode: CoolingMode?
     var batteryPercent: Double?
     var batteryIsCharging: Bool
     var batteryIsConnected: Bool
@@ -30,6 +32,8 @@ struct HardwareSnapshot: Codable, Sendable, Equatable {
         diskTotal: 512 * 1_073_741_824,
         fanPercent: nil,
         fanRPM: nil,
+        performanceProfile: .comfort,
+        coolingMode: .auto,
         batteryPercent: 0.67,
         batteryIsCharging: false,
         batteryIsConnected: true,
