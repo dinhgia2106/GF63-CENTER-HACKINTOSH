@@ -20,8 +20,12 @@ final class HardwareMonitor: ObservableObject {
     private var timer: AnyCancellable?
     private var pendingCoolingApply: Task<Void, Never>?
     private var lastWidgetReload = Date.distantPast
+    private var configuredPerformanceProfile: PerformanceProfile?
+    private var configuredCoolingMode: CoolingMode?
 
-    func start() {
+    func start(configuration: ControlConfiguration) {
+        configuredPerformanceProfile = configuration.profile
+        configuredCoolingMode = configuration.coolingMode
         guard timer == nil else { return }
         refresh()
         configureTimer(every: 2)
@@ -94,8 +98,8 @@ final class HardwareMonitor: ObservableObject {
             diskTotal: disk.total,
             fanPercent: ecReading?.fanPercent ?? smcFanPercent,
             fanRPM: ecReading?.fanRPM ?? smcFanRPM,
-            performanceProfile: activePerformanceProfile,
-            coolingMode: activeCoolingMode,
+            performanceProfile: activePerformanceProfile ?? configuredPerformanceProfile,
+            coolingMode: activeCoolingMode ?? configuredCoolingMode,
             batteryPercent: battery.percent,
             batteryIsCharging: battery.isCharging,
             batteryIsConnected: battery.isConnected,
@@ -136,6 +140,7 @@ final class HardwareMonitor: ObservableObject {
         }
         if result != 0 { _ = ec.restoreAuto() }
         guard finish(result, action: "Fan behavior \(configuration.coolingMode.rawValue)") else { return }
+        configuredCoolingMode = configuration.coolingMode
         refresh()
     }
 
@@ -167,6 +172,8 @@ final class HardwareMonitor: ObservableObject {
             _ = ec.restoreAuto()
         }
         if finish(result, action: "Performance profile \(profile.rawValue)") {
+            configuredPerformanceProfile = profile
+            if profile == .ecoPlus { configuredCoolingMode = .auto }
             configureTimer(every: profile == .ecoPlus ? 10 : 2)
             refresh()
         }
@@ -182,6 +189,7 @@ final class HardwareMonitor: ObservableObject {
         pendingCoolingApply?.cancel()
         pendingCoolingApply = nil
         if finish(ec.restoreAuto(), action: "Firmware Auto restored") {
+            configuredCoolingMode = .auto
             refresh()
         }
     }

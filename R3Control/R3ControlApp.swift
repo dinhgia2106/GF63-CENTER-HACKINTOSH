@@ -11,7 +11,7 @@ struct R3ControlApp: App {
                 .environmentObject(monitor)
                 .environmentObject(model)
                 .frame(minWidth: 1020, minHeight: 680)
-                .onAppear { monitor.start() }
+                .onAppear { monitor.start(configuration: model.configuration) }
         }
         .defaultSize(width: 1180, height: 780)
         .windowStyle(.hiddenTitleBar)
