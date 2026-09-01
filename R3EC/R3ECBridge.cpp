@@ -3,6 +3,7 @@
 #include <libkern/c++/OSBoolean.h>
 #include <libkern/c++/OSNumber.h>
 #include <libkern/libkern.h>
+#include <i386/proc_reg.h>
 
 #define super IOService
 OSDefineMetaClassAndStructors(R3ECBridge, IOService)
@@ -13,7 +14,7 @@ OSDefineMetaClassAndStructors(R3ECUserClient, IOUserClient)
 #undef super
 
 namespace {
-constexpr uint32_t kProtocolVersion = 2;
+constexpr uint32_t kProtocolVersion = 3;
 constexpr uint8_t kFirmwareStart = 0xA0;
 constexpr size_t kFirmwareLength = 12;
 constexpr uint8_t kCPUCurrentTemperature = 0x68;
@@ -34,6 +35,16 @@ constexpr uint8_t kPerformanceEco = 0xC2;
 constexpr uint8_t kPerformanceComfort = 0xC1;
 constexpr uint8_t kPerformanceSport = 0xC0;
 constexpr uint8_t kPerformanceTurbo = 0xC4;
+constexpr uint32_t kMSRRaplPowerUnit = 0x606;
+constexpr uint32_t kMSRPackagePowerLimit = 0x610;
+constexpr uint64_t kPowerLimit1Mask = 0x7FFFULL;
+constexpr uint64_t kPowerLimit2Mask = 0x7FFFULL << 32;
+constexpr uint64_t kPowerLimit1Enable = 1ULL << 15;
+constexpr uint64_t kPowerLimit2Enable = 1ULL << 47;
+constexpr uint64_t kPowerLimit1Lock = 1ULL << 31;
+constexpr uint64_t kPackagePowerLimitLock = 1ULL << 63;
+constexpr uint16_t kEcoPlusPL1Watts = 15;
+constexpr uint16_t kEcoPlusPL2Watts = 25;
 
 bool equalFirmware(const char *lhs, const char *rhs) {
     return strncmp(lhs, rhs, 15) == 0;
@@ -65,7 +76,10 @@ bool R3ECBridge::start(IOService *provider) {
 }
 
 void R3ECBridge::stop(IOService *provider) {
-    if (firmwareAllowed) restoreFirmwareAuto();
+    if (firmwareAllowed) {
+        setEcoPlus(false);
+        restoreFirmwareAuto();
+    }
     IOService::stop(provider);
 }
 
@@ -141,6 +155,22 @@ IOReturn R3ECBridge::writeByteMaskedVerified(uint8_t address, uint8_t value, uin
     return (actual & mask) == (value & mask) ? kIOReturnSuccess : kIOReturnIOError;
 }
 
+IOReturn R3ECBridge::readPackagePowerLimits(uint16_t *pl1Deciwatts, uint16_t *pl2Deciwatts,
+                                            bool *locked) {
+    if (!pl1Deciwatts || !pl2Deciwatts || !locked || !firmwareAllowed) return kIOReturnBadArgument;
+    const uint64_t unitMSR = rdmsr64(kMSRRaplPowerUnit);
+    const uint8_t exponent = static_cast<uint8_t>(unitMSR & 0x0F);
+    if (exponent > 15) return kIOReturnUnsupported;
+    const uint32_t scale = 1U << exponent;
+    const uint64_t limitMSR = rdmsr64(kMSRPackagePowerLimit);
+    const uint32_t pl1Raw = static_cast<uint32_t>(limitMSR & kPowerLimit1Mask);
+    const uint32_t pl2Raw = static_cast<uint32_t>((limitMSR & kPowerLimit2Mask) >> 32);
+    *pl1Deciwatts = static_cast<uint16_t>((pl1Raw * 10U + scale / 2U) / scale);
+    *pl2Deciwatts = static_cast<uint16_t>((pl2Raw * 10U + scale / 2U) / scale);
+    *locked = (limitMSR & (kPowerLimit1Lock | kPackagePowerLimitLock)) != 0;
+    return kIOReturnSuccess;
+}
+
 bool R3ECBridge::readFirmware() {
     bzero(firmware, sizeof(firmware));
     for (size_t index = 0; index < kFirmwareLength; ++index) {
@@ -181,6 +211,19 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     status->coolerBoost = (boost & kCoolerBoostMask) != 0;
     status->chargeLimit = 0;
     status->writable = firmwareAllowed;
+    if (result == kIOReturnSuccess && firmwareAllowed) {
+        bool locked = false;
+        IOReturn powerResult = readPackagePowerLimits(
+            &status->packagePowerLimit1Deciwatts,
+            &status->packagePowerLimit2Deciwatts,
+            &locked
+        );
+        if (powerResult == kIOReturnSuccess) {
+            status->powerLimitLocked = locked;
+            status->ecoPlusActive = ecoPlusActive;
+            if (!locked) status->capabilities |= R3ECCapabilityEcoPlus;
+        }
+    }
     IOLockUnlock(lock);
     return result;
 }
@@ -272,6 +315,72 @@ IOReturn R3ECBridge::setPerformanceProfile(uint8_t profile) {
     return result;
 }
 
+IOReturn R3ECBridge::setEcoPlus(bool enabled) {
+    if (!firmwareAllowed) return kIOReturnNotPermitted;
+    IOLockLock(lock);
+
+    const uint64_t unitMSR = rdmsr64(kMSRRaplPowerUnit);
+    const uint8_t exponent = static_cast<uint8_t>(unitMSR & 0x0F);
+    if (exponent > 15) {
+        IOLockUnlock(lock);
+        return kIOReturnUnsupported;
+    }
+
+    const uint64_t current = rdmsr64(kMSRPackagePowerLimit);
+    if ((current & (kPowerLimit1Lock | kPackagePowerLimitLock)) != 0) {
+        IOLockUnlock(lock);
+        return kIOReturnNotPermitted;
+    }
+
+    if (!enabled) {
+        if (!powerLimitCaptured) {
+            ecoPlusActive = false;
+            IOLockUnlock(lock);
+            return kIOReturnSuccess;
+        }
+        wrmsr64(kMSRPackagePowerLimit, originalPackagePowerLimit);
+        const uint64_t actual = rdmsr64(kMSRPackagePowerLimit);
+        const uint64_t verifyMask = kPowerLimit1Mask | kPowerLimit2Mask |
+            kPowerLimit1Enable | kPowerLimit2Enable;
+        const bool verified = (actual & verifyMask) == (originalPackagePowerLimit & verifyMask);
+        if (verified) {
+            powerLimitCaptured = false;
+            ecoPlusActive = false;
+        }
+        IOLockUnlock(lock);
+        return verified ? kIOReturnSuccess : kIOReturnIOError;
+    }
+
+    const uint32_t scale = 1U << exponent;
+    const uint64_t pl1Raw = static_cast<uint64_t>(kEcoPlusPL1Watts) * scale;
+    const uint64_t pl2Raw = static_cast<uint64_t>(kEcoPlusPL2Watts) * scale;
+    if (pl1Raw > kPowerLimit1Mask || pl2Raw > 0x7FFFULL) {
+        IOLockUnlock(lock);
+        return kIOReturnBadArgument;
+    }
+    if (!powerLimitCaptured) {
+        originalPackagePowerLimit = current;
+        powerLimitCaptured = true;
+    }
+    uint64_t next = current & ~(kPowerLimit1Mask | kPowerLimit2Mask);
+    next |= pl1Raw | (pl2Raw << 32) | kPowerLimit1Enable | kPowerLimit2Enable;
+    wrmsr64(kMSRPackagePowerLimit, next);
+    const uint64_t actual = rdmsr64(kMSRPackagePowerLimit);
+    const bool verified = (actual & kPowerLimit1Mask) == pl1Raw &&
+        ((actual & kPowerLimit2Mask) >> 32) == pl2Raw &&
+        (actual & (kPowerLimit1Enable | kPowerLimit2Enable)) ==
+            (kPowerLimit1Enable | kPowerLimit2Enable);
+    if (verified) {
+        ecoPlusActive = true;
+    } else {
+        wrmsr64(kMSRPackagePowerLimit, originalPackagePowerLimit);
+        powerLimitCaptured = false;
+        ecoPlusActive = false;
+    }
+    IOLockUnlock(lock);
+    return verified ? kIOReturnSuccess : kIOReturnIOError;
+}
+
 IOReturn R3ECBridge::restoreFirmwareAuto() {
     IOLockLock(lock);
     uint8_t boost = 0;
@@ -296,6 +405,7 @@ bool R3ECUserClient::start(IOService *provider) {
 
 IOReturn R3ECUserClient::clientClose() {
     if (changedHardware && bridge) bridge->restoreFirmwareAuto();
+    if (changedEcoPlus && bridge) bridge->setEcoPlus(false);
     if (changedPerformance && bridge) bridge->setPerformanceProfile(R3ECPerformanceComfort);
     if (bridge) {
         bridge->release();
@@ -342,11 +452,16 @@ IOReturn R3ECUserClient::externalMethod(uint32_t selector, IOExternalMethodArgum
             if (arguments->scalarInputCount != 1) return kIOReturnBadArgument;
             result = bridge->setPerformanceProfile(static_cast<uint8_t>(arguments->scalarInput[0]));
             break;
+        case R3ECSetEcoPlus:
+            if (arguments->scalarInputCount != 1) return kIOReturnBadArgument;
+            result = bridge->setEcoPlus(arguments->scalarInput[0] != 0);
+            break;
         default:
             return kIOReturnUnsupported;
     }
     if (result == kIOReturnSuccess) {
         if (selector == R3ECSetPerformanceProfile) changedPerformance = true;
+        else if (selector == R3ECSetEcoPlus) changedEcoPlus = arguments->scalarInput[0] != 0;
         else if (selector == R3ECRestoreFirmwareAuto) changedHardware = false;
         else changedHardware = true;
     }

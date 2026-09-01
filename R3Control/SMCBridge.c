@@ -201,8 +201,10 @@ int32_t R3ECReadStatus(R3ECStatus *status) {
             status,
             &outputSize
         );
-        const size_t legacySize = offsetof(R3ECStatus, performanceProfileRaw);
-        if (result == KERN_SUCCESS && outputSize != sizeof(*status) && outputSize != legacySize) {
+        const size_t version1Size = offsetof(R3ECStatus, performanceProfileRaw);
+        const size_t version2Size = offsetof(R3ECStatus, packagePowerLimit1Deciwatts);
+        if (result == KERN_SUCCESS && outputSize != sizeof(*status) &&
+            outputSize != version1Size && outputSize != version2Size) {
             result = kIOReturnBadMessageID;
         }
     }
@@ -234,6 +236,10 @@ int32_t R3ECApplyCoolerBoost(bool enabled) {
 
 int32_t R3ECApplyPerformanceProfile(uint8_t profile) {
     return r3ECScalarCall(R3ECSetPerformanceProfile, profile);
+}
+
+int32_t R3ECApplyEcoPlus(bool enabled) {
+    return r3ECScalarCall(R3ECSetEcoPlus, enabled ? 1 : 0);
 }
 
 int32_t R3ECApplyFanCurve(const R3ECFanCurve *curve) {

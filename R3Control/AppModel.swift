@@ -74,6 +74,7 @@ final class AppModel: ObservableObject {
 
     func selectProfile(_ profile: PerformanceProfile) {
         configuration.profile = profile
+        if profile == .ecoPlus { configuration.coolingMode = .auto }
         persist()
     }
 

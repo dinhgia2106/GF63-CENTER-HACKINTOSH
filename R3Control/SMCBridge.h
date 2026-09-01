@@ -15,6 +15,7 @@ int32_t R3ECApplyFanMode(uint8_t mode);
 int32_t R3ECApplyFixedFanSpeed(uint8_t percent);
 int32_t R3ECApplyCoolerBoost(bool enabled);
 int32_t R3ECApplyPerformanceProfile(uint8_t profile);
+int32_t R3ECApplyEcoPlus(bool enabled);
 int32_t R3ECApplyFanCurve(const R3ECFanCurve *curve);
 int32_t R3ECApplyFanCurveValues(const uint8_t temperatures[6], const uint8_t speeds[6]);
 int32_t R3ECRestoreAuto(void);

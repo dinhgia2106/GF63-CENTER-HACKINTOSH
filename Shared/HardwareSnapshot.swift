@@ -58,6 +58,7 @@ enum ControlAvailability: Codable, Sendable, Equatable {
 }
 
 enum PerformanceProfile: String, CaseIterable, Identifiable, Codable, Sendable {
+    case ecoPlus = "Eco+"
     case eco = "Eco"
     case comfort = "Comfort"
     case sport = "Sport"

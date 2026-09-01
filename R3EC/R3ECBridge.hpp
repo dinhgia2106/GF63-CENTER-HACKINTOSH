@@ -24,6 +24,7 @@ public:
     IOReturn setChargeLimit(uint8_t percent);
     IOReturn setFanCurve(const R3ECFanCurve *curve);
     IOReturn setPerformanceProfile(uint8_t profile);
+    IOReturn setEcoPlus(bool enabled);
     IOReturn restoreFirmwareAuto();
 
 private:
@@ -31,10 +32,15 @@ private:
     IOLock *lock { nullptr };
     char firmware[16] {};
     bool firmwareAllowed { false };
+    bool powerLimitCaptured { false };
+    bool ecoPlusActive { false };
+    uint64_t originalPackagePowerLimit { 0 };
 
     IOReturn readByte(uint8_t address, uint8_t *value);
     IOReturn writeByteVerified(uint8_t address, uint8_t value);
     IOReturn writeByteMaskedVerified(uint8_t address, uint8_t value, uint8_t mask);
+    IOReturn readPackagePowerLimits(uint16_t *pl1Deciwatts, uint16_t *pl2Deciwatts,
+                                    bool *locked);
     bool readFirmware();
     bool isAllowedFirmware() const;
 };
@@ -55,6 +61,7 @@ private:
     R3ECBridge *bridge { nullptr };
     bool changedHardware { false };
     bool changedPerformance { false };
+    bool changedEcoPlus { false };
 };
 
 #endif

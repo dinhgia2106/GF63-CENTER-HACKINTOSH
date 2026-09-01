@@ -14,6 +14,7 @@ enum R3ECSelector : uint32_t {
     R3ECSetFanCurve = 5,
     R3ECRestoreFirmwareAuto = 6,
     R3ECSetPerformanceProfile = 7,
+    R3ECSetEcoPlus = 8,
     R3ECSelectorCount
 };
 
@@ -38,7 +39,8 @@ enum R3ECCapability : uint32_t {
     R3ECCapabilityFanCurve = 1u << 3,
     R3ECCapabilityCoolerBoost = 1u << 4,
     R3ECCapabilityChargeLimit = 1u << 5,
-    R3ECCapabilityPerformanceProfile = 1u << 6
+    R3ECCapabilityPerformanceProfile = 1u << 6,
+    R3ECCapabilityEcoPlus = 1u << 7
 };
 
 typedef struct __attribute__((packed)) {
@@ -53,6 +55,10 @@ typedef struct __attribute__((packed)) {
     uint8_t chargeLimit;
     uint8_t writable;
     uint8_t performanceProfileRaw;
+    uint16_t packagePowerLimit1Deciwatts;
+    uint16_t packagePowerLimit2Deciwatts;
+    uint8_t ecoPlusActive;
+    uint8_t powerLimitLocked;
 } R3ECStatus;
 
 typedef struct __attribute__((packed)) {

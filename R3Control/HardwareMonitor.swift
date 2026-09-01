@@ -9,19 +9,22 @@ final class HardwareMonitor: ObservableObject {
     @Published private(set) var lastError: String?
     @Published private(set) var lastControlMessage: String?
     @Published private(set) var activePerformanceProfile: PerformanceProfile?
+    @Published private(set) var packagePowerLimit1: Double?
+    @Published private(set) var packagePowerLimit2: Double?
+    @Published private(set) var ecoPlusActive = false
+    @Published private(set) var powerLimitLocked = false
 
     private let smc = SMCReader()
     private let ec = R3ECClient()
     private let cpu = CPULoadReader()
     private var timer: AnyCancellable?
     private var pendingCoolingApply: Task<Void, Never>?
+    private var lastWidgetReload = Date.distantPast
 
     func start() {
         guard timer == nil else { return }
         refresh()
-        timer = Timer.publish(every: 2, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] _ in self?.refresh() }
+        configureTimer(every: 2)
     }
 
     func stop() {
@@ -41,9 +44,13 @@ final class HardwareMonitor: ObservableObject {
         let battery = BatteryReader.sample()
         let ecResult = ec.read()
         let ecReading = ecResult.reading
+        packagePowerLimit1 = ecReading?.packagePowerLimit1
+        packagePowerLimit2 = ecReading?.packagePowerLimit2
+        ecoPlusActive = ecReading?.ecoPlusActive ?? false
+        powerLimitLocked = ecReading?.powerLimitLocked ?? false
         activePerformanceProfile = ecReading.flatMap { reading in
             switch reading.performanceProfileRaw {
-            case 0xC2: return .eco
+            case 0xC2: return reading.ecoPlusActive ? .ecoPlus : .eco
             case 0xC1: return .comfort
             case 0xC0: return .sport
             case 0xC4: return .turbo
@@ -91,7 +98,10 @@ final class HardwareMonitor: ObservableObject {
         history.append(next)
         if history.count > 300 { history.removeFirst(history.count - 300) }
         SharedSnapshotStore.save(next)
-        WidgetCenter.shared.reloadTimelines(ofKind: "R3StatusWidget")
+        if Date.now.timeIntervalSince(lastWidgetReload) >= 30 {
+            WidgetCenter.shared.reloadTimelines(ofKind: "R3StatusWidget")
+            lastWidgetReload = .now
+        }
     }
 
     func applyCooling(_ configuration: ControlConfiguration) {
@@ -131,7 +141,22 @@ final class HardwareMonitor: ObservableObject {
     }
 
     func setPerformanceProfile(_ profile: PerformanceProfile) {
-        if finish(ec.setPerformanceProfile(profile), action: "Performance profile \(profile.rawValue)") {
+        var result: Int32
+        if profile == .ecoPlus {
+            result = ec.setPerformanceProfile(.eco)
+            if result == 0 { result = ec.setEcoPlus(true) }
+            if result == 0 { result = ec.setCoolerBoost(false) }
+            if result == 0 { result = ec.setFirmwareAuto() }
+        } else {
+            result = ec.setEcoPlus(false)
+            if result == 0 { result = ec.setPerformanceProfile(profile) }
+        }
+        if result != 0 {
+            _ = ec.setEcoPlus(false)
+            _ = ec.restoreAuto()
+        }
+        if finish(result, action: "Performance profile \(profile.rawValue)") {
+            configureTimer(every: profile == .ecoPlus ? 10 : 2)
             refresh()
         }
     }
@@ -160,5 +185,12 @@ final class HardwareMonitor: ObservableObject {
         lastError = nil
         lastControlMessage = "\(action) applied and verified by EC read-back."
         return true
+    }
+
+    private func configureTimer(every interval: TimeInterval) {
+        timer?.cancel()
+        timer = Timer.publish(every: interval, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self] _ in self?.refresh() }
     }
 }

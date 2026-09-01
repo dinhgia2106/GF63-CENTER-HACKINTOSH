@@ -8,6 +8,10 @@ struct R3ECReading: Sendable {
     let fanModeRaw: UInt8
     let coolerBoost: Bool
     let performanceProfileRaw: UInt8
+    let packagePowerLimit1: Double?
+    let packagePowerLimit2: Double?
+    let ecoPlusActive: Bool
+    let powerLimitLocked: Bool
     let chargeLimit: Int?
     let writable: Bool
 }
@@ -16,7 +20,7 @@ final class R3ECClient {
     func read() -> (reading: R3ECReading?, result: Int32) {
         var raw = R3ECStatus()
         let result = R3ECReadStatus(&raw)
-        guard result == 0, raw.protocolVersion == 1 || raw.protocolVersion == 2 else { return (nil, result) }
+        guard result == 0, (1...3).contains(raw.protocolVersion) else { return (nil, result) }
 
         let firmware = withUnsafeBytes(of: &raw.firmware) { bytes in
             String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
@@ -29,6 +33,12 @@ final class R3ECClient {
             fanModeRaw: raw.fanModeRaw,
             coolerBoost: raw.coolerBoost != 0,
             performanceProfileRaw: raw.performanceProfileRaw,
+            packagePowerLimit1: raw.packagePowerLimit1Deciwatts > 0
+                ? Double(raw.packagePowerLimit1Deciwatts) / 10 : nil,
+            packagePowerLimit2: raw.packagePowerLimit2Deciwatts > 0
+                ? Double(raw.packagePowerLimit2Deciwatts) / 10 : nil,
+            ecoPlusActive: raw.ecoPlusActive != 0,
+            powerLimitLocked: raw.powerLimitLocked != 0,
             chargeLimit: raw.chargeLimit > 0 ? Int(raw.chargeLimit) : nil,
             writable: raw.writable != 0
         )
@@ -54,12 +64,17 @@ final class R3ECClient {
     func setPerformanceProfile(_ profile: PerformanceProfile) -> Int32 {
         let value: UInt8
         switch profile {
+        case .ecoPlus: value = 0
         case .eco: value = 0
         case .comfort: value = 1
         case .sport: value = 2
         case .turbo: value = 3
         }
         return R3ECApplyPerformanceProfile(value)
+    }
+
+    func setEcoPlus(_ enabled: Bool) -> Int32 {
+        R3ECApplyEcoPlus(enabled)
     }
 
     func restoreAuto() -> Int32 {

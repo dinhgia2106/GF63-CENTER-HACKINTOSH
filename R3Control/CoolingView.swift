@@ -30,9 +30,14 @@ struct CoolingView: View {
                         }
                     }
                     if let active = monitor.activePerformanceProfile {
-                        Label("EC active: \(active.rawValue)", systemImage: "checkmark.shield.fill")
+                        Label(performanceStatus(active), systemImage: "checkmark.shield.fill")
                             .font(.caption)
                             .foregroundStyle(R3Theme.good)
+                    }
+                    if monitor.powerLimitLocked {
+                        Label("CPU package power limits are firmware-locked; Eco+ is unavailable.", systemImage: "lock.fill")
+                            .font(.caption)
+                            .foregroundStyle(R3Theme.warning)
                     }
                 }
 
@@ -221,6 +226,7 @@ struct CoolingView: View {
 
     private func profileSymbol(_ profile: PerformanceProfile) -> String {
         switch profile {
+        case .ecoPlus: return "leaf.circle.fill"
         case .eco: return "leaf.fill"
         case .comfort: return "circle.lefthalf.filled"
         case .sport: return "speedometer"
@@ -230,6 +236,7 @@ struct CoolingView: View {
 
     private func profileHint(_ profile: PerformanceProfile) -> String {
         switch profile {
+        case .ecoPlus: return "15W sustained · 25W burst"
         case .eco: return "Lowest power & heat"
         case .comfort: return "Balanced daily use"
         case .sport: return "Higher performance"
@@ -239,10 +246,20 @@ struct CoolingView: View {
 
     private func profileTint(_ profile: PerformanceProfile) -> Color {
         switch profile {
+        case .ecoPlus: return .mint
         case .eco: return R3Theme.good
         case .comfort: return R3Theme.cyan
         case .sport: return R3Theme.violet
         case .turbo: return R3Theme.accent
         }
+    }
+
+    private func performanceStatus(_ profile: PerformanceProfile) -> String {
+        guard profile == .ecoPlus,
+              let pl1 = monitor.packagePowerLimit1,
+              let pl2 = monitor.packagePowerLimit2 else {
+            return "EC active: \(profile.rawValue)"
+        }
+        return "EC active: Eco+ · PL1 \(Int(pl1))W · PL2 \(Int(pl2))W · Fan Auto"
     }
 }
