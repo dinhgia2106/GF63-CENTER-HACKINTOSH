@@ -10,7 +10,8 @@
 static void print_status(const char *label, const R3ECStatus *status) {
     printf(
         "%s firmware=%s writable=%u capabilities=0x%02x temp=%uC "
-        "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u performance_raw=0x%02x\n",
+        "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u performance_raw=0x%02x "
+        "pl1=%.1fW pl2=%.1fW eco_plus=%u power_locked=%u\n",
         label,
         status->firmware,
         status->writable,
@@ -20,7 +21,11 @@ static void print_status(const char *label, const R3ECStatus *status) {
         status->fanRPM,
         status->fanModeRaw,
         status->coolerBoost,
-        status->performanceProfileRaw
+        status->performanceProfileRaw,
+        status->packagePowerLimit1Deciwatts / 10.0,
+        status->packagePowerLimit2Deciwatts / 10.0,
+        status->ecoPlusActive,
+        status->powerLimitLocked
     );
 }
 
@@ -40,8 +45,10 @@ int main(int argc, char **argv) {
     const bool testControls = argc == 2 && strcmp(argv[1], "--test-controls") == 0;
     const bool testLiveControls = argc == 2 && strcmp(argv[1], "--test-live-controls") == 0;
     const bool testPerformance = argc == 2 && strcmp(argv[1], "--test-performance") == 0;
-    if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls && !testPerformance)) {
-        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls|--test-performance]\n", argv[0]);
+    const bool testEcoPlus = argc == 2 && strcmp(argv[1], "--test-eco-plus") == 0;
+    if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls &&
+                    !testPerformance && !testEcoPlus)) {
+        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls|--test-performance|--test-eco-plus]\n", argv[0]);
         return 64;
     }
 
@@ -50,7 +57,7 @@ int main(int argc, char **argv) {
         R3ECClose();
         return 1;
     }
-    if (!testBasic && !testControls && !testLiveControls && !testPerformance) {
+    if (!testBasic && !testControls && !testLiveControls && !testPerformance && !testEcoPlus) {
         R3ECClose();
         return 0;
     }
@@ -84,6 +91,45 @@ int main(int argc, char **argv) {
             return 6;
         }
         puts("PASS: Eco, Comfort, Sport and Turbo were verified; Comfort was restored.");
+        return 0;
+    }
+
+    if (testEcoPlus) {
+        if (before.protocolVersion < 3 || before.powerLimitLocked ||
+            !(before.capabilities & R3ECCapabilityEcoPlus)) {
+            fputs("Eco+ is unavailable or package power limits are locked\n", stderr);
+            R3ECClose();
+            return 7;
+        }
+        int32_t ecoResult = R3ECApplyPerformanceProfile(R3ECPerformanceEco);
+        if (ecoResult == kIOReturnSuccess) ecoResult = R3ECApplyCoolerBoost(false);
+        if (ecoResult == kIOReturnSuccess) ecoResult = R3ECApplyFanMode(R3ECFanModeAuto);
+        if (ecoResult == kIOReturnSuccess) ecoResult = R3ECApplyEcoPlus(true);
+        R3ECStatus limited = {0};
+        const bool limitedVerified = ecoResult == kIOReturnSuccess &&
+            read_status("eco-plus", &limited) && limited.performanceProfileRaw == 0xC2 &&
+            (limited.fanModeRaw & 0xFC) == 0x0C && !limited.coolerBoost &&
+            limited.ecoPlusActive && limited.packagePowerLimit1Deciwatts == 150 &&
+            limited.packagePowerLimit2Deciwatts == 250;
+
+        int32_t restoreResult = R3ECApplyEcoPlus(false);
+        if (restoreResult == kIOReturnSuccess) {
+            restoreResult = R3ECApplyPerformanceProfile(R3ECPerformanceComfort);
+        }
+        R3ECStatus restored = {0};
+        const bool restoreVerified = restoreResult == kIOReturnSuccess &&
+            read_status("restored", &restored) && !restored.ecoPlusActive &&
+            restored.performanceProfileRaw == 0xC1 &&
+            restored.packagePowerLimit1Deciwatts == before.packagePowerLimit1Deciwatts &&
+            restored.packagePowerLimit2Deciwatts == before.packagePowerLimit2Deciwatts;
+        R3ECRestoreAuto();
+        R3ECClose();
+        if (!limitedVerified || !restoreVerified) {
+            fprintf(stderr, "Eco+ verification failed (limited=%d restored=%d)\n",
+                    limitedVerified, restoreVerified);
+            return 8;
+        }
+        puts("PASS: Eco+ 15W/25W was verified and original limits were restored with Comfort/Auto.");
         return 0;
     }
 
