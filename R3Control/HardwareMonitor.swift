@@ -13,6 +13,9 @@ final class HardwareMonitor: ObservableObject {
     @Published private(set) var packagePowerLimit2: Double?
     @Published private(set) var ecoPlusActive = false
     @Published private(set) var powerLimitLocked = false
+    @Published private(set) var chargeLimit: Int?
+    @Published private(set) var chargeLimitSupported = false
+    @Published private(set) var batteryTelemetryNotice: String?
 
     private let smc = SMCReader()
     private let ec = R3ECClient()
@@ -46,12 +49,15 @@ final class HardwareMonitor: ObservableObject {
         let memory = MemoryReader.sample()
         let disk = DiskReader.sample()
         let battery = BatteryReader.sample()
+        batteryTelemetryNotice = battery.telemetryNotice
         let ecResult = ec.read()
         let ecReading = ecResult.reading
         packagePowerLimit1 = ecReading?.packagePowerLimit1
         packagePowerLimit2 = ecReading?.packagePowerLimit2
         ecoPlusActive = ecReading?.ecoPlusActive ?? false
         powerLimitLocked = ecReading?.powerLimitLocked ?? false
+        chargeLimit = ecReading?.chargeLimit
+        chargeLimitSupported = ecReading?.chargeLimitSupported ?? false
         activePerformanceProfile = ecReading.flatMap { reading in
             switch reading.performanceProfileRaw {
             case 0xC2: return reading.ecoPlusActive ? .ecoPlus : .eco
@@ -177,6 +183,25 @@ final class HardwareMonitor: ObservableObject {
             configureTimer(every: profile == .ecoPlus ? 10 : 2)
             refresh()
         }
+    }
+
+    @discardableResult
+    func setChargeLimit(_ percent: Int) -> Bool {
+        guard [60, 80, 100].contains(percent) else {
+            lastError = "Charge limit failed: only the verified 60%, 80% and 100% presets are accepted."
+            lastControlMessage = nil
+            return false
+        }
+        guard chargeLimitSupported else {
+            lastError = "Charge limit failed: this R3EC firmware does not expose verified charge control."
+            lastControlMessage = nil
+            return false
+        }
+        guard finish(ec.setChargeLimit(percent), action: "Charge limit \(percent)%") else {
+            return false
+        }
+        refresh()
+        return true
     }
 
     func applySavedConfiguration(_ configuration: ControlConfiguration) {

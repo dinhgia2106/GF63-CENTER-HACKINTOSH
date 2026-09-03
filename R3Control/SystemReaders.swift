@@ -145,6 +145,7 @@ struct BatterySample: Sendable {
     var isConnected = false
     var healthPercent: Double?
     var cycleCount: Int?
+    var telemetryNotice: String?
 }
 
 enum BatteryReader {
@@ -168,22 +169,31 @@ enum BatteryReader {
             isCharging: charging,
             isConnected: state == kIOPSACPowerValue,
             healthPercent: registry.healthPercent,
-            cycleCount: registry.cycleCount
+            cycleCount: registry.cycleCount,
+            telemetryNotice: registry.telemetryNotice
         )
     }
 
-    private static func registryDetails() -> (healthPercent: Double?, cycleCount: Int?) {
+    private static func registryDetails() -> (healthPercent: Double?, cycleCount: Int?, telemetryNotice: String?) {
         let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSmartBattery"))
-        guard service != IO_OBJECT_NULL else { return (nil, nil) }
+        guard service != IO_OBJECT_NULL else { return (nil, nil, nil) }
         defer { IOObjectRelease(service) }
 
         var unmanaged: Unmanaged<CFMutableDictionary>?
         guard IORegistryEntryCreateCFProperties(service, &unmanaged, kCFAllocatorDefault, 0) == KERN_SUCCESS,
               let properties = unmanaged?.takeRetainedValue() as? [String: Any] else {
-            return (nil, nil)
+            return (nil, nil, nil)
         }
 
-        let cycleCount = (properties["CycleCount"] as? NSNumber)?.intValue
+        let batteryData = properties["BatteryData"] as? [String: Any]
+        let legacyData = properties["LegacyBatteryInfo"] as? [String: Any]
+        let cycleValues = [
+            (properties["CycleCount"] as? NSNumber)?.intValue,
+            (batteryData?["CycleCount"] as? NSNumber)?.intValue,
+            (legacyData?["Cycle Count"] as? NSNumber)?.intValue
+        ].compactMap { $0 }
+        let uniqueCycleValues = Set(cycleValues)
+        let cycleCount = uniqueCycleValues.count == 1 ? uniqueCycleValues.first : nil
         let design = (properties["DesignCapacity"] as? NSNumber)?.doubleValue
         let maximum = (properties["MaxCapacity"] as? NSNumber)?.doubleValue
         let health: Double?
@@ -192,6 +202,22 @@ enum BatteryReader {
         } else {
             health = nil
         }
-        return (health, cycleCount)
+
+        var incompleteFirmwareData = uniqueCycleValues.count > 1
+        if let cells = batteryData?["CellVoltage"] as? [NSNumber],
+           let packVoltage = (properties["Voltage"] as? NSNumber)?.doubleValue,
+           cells.count == 1,
+           cells[0].doubleValue > packVoltage * 1.2 {
+            incompleteFirmwareData = true
+        }
+        let serial = (properties["Serial"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if serial?.isEmpty != false {
+            incompleteFirmwareData = true
+        }
+
+        let notice = incompleteFirmwareData
+            ? "The firmware publishes incomplete battery identity/cell data. Health is a capacity estimate and cycle count is the value currently reported by macOS; either may change after a reboot. Charge-limit control is independent of these estimates."
+            : nil
+        return (health, cycleCount, notice)
     }
 }

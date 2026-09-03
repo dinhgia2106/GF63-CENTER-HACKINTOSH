@@ -13,6 +13,7 @@ struct R3ECReading: Sendable {
     let ecoPlusActive: Bool
     let powerLimitLocked: Bool
     let chargeLimit: Int?
+    let chargeLimitSupported: Bool
     let writable: Bool
 }
 
@@ -40,6 +41,7 @@ final class R3ECClient {
             ecoPlusActive: raw.ecoPlusActive != 0,
             powerLimitLocked: raw.powerLimitLocked != 0,
             chargeLimit: raw.chargeLimit > 0 ? Int(raw.chargeLimit) : nil,
+            chargeLimitSupported: (raw.capabilities & (1 << 5)) != 0,
             writable: raw.writable != 0
         )
         return (reading, result)
@@ -59,6 +61,10 @@ final class R3ECClient {
 
     func setCoolerBoost(_ enabled: Bool) -> Int32 {
         R3ECApplyCoolerBoost(enabled)
+    }
+
+    func setChargeLimit(_ percent: Int) -> Int32 {
+        R3ECApplyChargeLimit(UInt8(clamping: percent))
     }
 
     func setPerformanceProfile(_ profile: PerformanceProfile) -> Int32 {

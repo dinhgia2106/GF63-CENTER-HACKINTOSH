@@ -26,6 +26,7 @@ constexpr uint8_t kCPUCurveSpeedStart = 0x72;
 constexpr uint8_t kFanMode = 0xF4;
 constexpr uint8_t kCoolerBoost = 0x98;
 constexpr uint8_t kPerformanceProfile = 0xF2;
+constexpr uint8_t kChargeLimit = 0xEF;
 constexpr uint8_t kModeAuto = 0x0C;
 constexpr uint8_t kModeSilent = 0x1C;
 constexpr uint8_t kModeBasic = 0x4C;
@@ -35,6 +36,10 @@ constexpr uint8_t kPerformanceEco = 0xC2;
 constexpr uint8_t kPerformanceComfort = 0xC1;
 constexpr uint8_t kPerformanceSport = 0xC0;
 constexpr uint8_t kPerformanceTurbo = 0xC4;
+constexpr uint8_t kChargeLimitEnabledMask = 0x80;
+static_assert((60 | kChargeLimitEnabledMask) == 0xBC, "60% charge preset encoding changed");
+static_assert((80 | kChargeLimitEnabledMask) == 0xD0, "80% charge preset encoding changed");
+static_assert((100 | kChargeLimitEnabledMask) == 0xE4, "100% charge preset encoding changed");
 constexpr uint32_t kMSRRaplPowerUnit = 0x606;
 constexpr uint32_t kMSRPackagePowerLimit = 0x610;
 constexpr uint64_t kPowerLimit1Mask = 0x7FFFULL;
@@ -195,7 +200,7 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     if (firmwareAllowed) {
         status->capabilities |= R3ECCapabilityFanMode | R3ECCapabilityFixedFan |
             R3ECCapabilityFanCurve | R3ECCapabilityCoolerBoost |
-            R3ECCapabilityPerformanceProfile;
+            R3ECCapabilityPerformanceProfile | R3ECCapabilityChargeLimit;
     }
     strlcpy(status->firmware, firmware, sizeof(status->firmware));
     uint8_t rpmHigh = 0, rpmLow = 0, boost = 0;
@@ -211,6 +216,17 @@ IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     status->coolerBoost = (boost & kCoolerBoostMask) != 0;
     status->chargeLimit = 0;
     status->writable = firmwareAllowed;
+    if (firmwareAllowed) {
+        uint8_t chargeRaw = 0;
+        if (readByte(kChargeLimit, &chargeRaw) == kIOReturnSuccess &&
+            (chargeRaw & kChargeLimitEnabledMask) != 0) {
+            const uint8_t chargeLimit = chargeRaw & ~kChargeLimitEnabledMask;
+            if (chargeLimit >= 10 && chargeLimit <= 100) {
+                status->chargeLimit = chargeLimit;
+                status->capabilities |= R3ECCapabilityChargeLimit;
+            }
+        }
+    }
     if (result == kIOReturnSuccess && firmwareAllowed) {
         bool locked = false;
         uint16_t pl1Deciwatts = 0;
@@ -273,8 +289,14 @@ IOReturn R3ECBridge::setCoolerBoost(bool enabled) {
 }
 
 IOReturn R3ECBridge::setChargeLimit(uint8_t percent) {
-    (void)percent;
-    return kIOReturnUnsupported;
+    if (percent != 60 && percent != 80 && percent != 100) return kIOReturnBadArgument;
+    IOLockLock(lock);
+    IOReturn result = writeByteVerified(
+        kChargeLimit,
+        static_cast<uint8_t>(percent | kChargeLimitEnabledMask)
+    );
+    IOLockUnlock(lock);
+    return result;
 }
 
 IOReturn R3ECBridge::setFanCurve(const R3ECFanCurve *curve) {
@@ -467,6 +489,7 @@ IOReturn R3ECUserClient::externalMethod(uint32_t selector, IOExternalMethodArgum
         if (selector == R3ECSetPerformanceProfile) changedPerformance = true;
         else if (selector == R3ECSetEcoPlus) changedEcoPlus = arguments->scalarInput[0] != 0;
         else if (selector == R3ECRestoreFirmwareAuto) changedHardware = false;
+        else if (selector == R3ECSetChargeLimit) { /* persistent firmware preference */ }
         else changedHardware = true;
     }
     return result;

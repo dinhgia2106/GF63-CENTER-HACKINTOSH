@@ -19,10 +19,10 @@
 - Exact allowlist for `16R3EMS1.100` and `.102`.
 - Real Auto, Silent, Boost and Custom fixed-speed commands.
 - Eco+ with verified/restorable 15 W PL1 and 25 W PL2 package limits.
+- Battery Care presets at 60%, 80% and 100%, gated by the EC threshold-valid bit and verified by read-back.
 - Per-write read-back and disconnect rollback to firmware Auto.
 - Capture and compare EC state in macOS and Windows/MSI Center.
 - Confirm fan percentage, temperature, performance profile and Cooler Boost offsets on this exact unit.
-- Battery charge writes are out of scope for this machine.
 
 ## 0.3 — hardening and broader validation
 

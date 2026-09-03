@@ -234,6 +234,10 @@ int32_t R3ECApplyCoolerBoost(bool enabled) {
     return r3ECScalarCall(R3ECSetCoolerBoost, enabled ? 1 : 0);
 }
 
+int32_t R3ECApplyChargeLimit(uint8_t percent) {
+    return r3ECScalarCall(R3ECSetChargeLimit, percent);
+}
+
 int32_t R3ECApplyPerformanceProfile(uint8_t profile) {
     return r3ECScalarCall(R3ECSetPerformanceProfile, profile);
 }

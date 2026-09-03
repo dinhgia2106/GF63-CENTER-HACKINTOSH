@@ -28,6 +28,14 @@ mkdir -p "$PRODUCT_DIR"
 ditto "$DERIVED_DIR/App/Build/Products/Release/R3Control.app" "$PRODUCT_DIR/R3Control.app"
 ditto "$DERIVED_DIR/Kext/Build/Products/Release/R3EC.kext" "$PRODUCT_DIR/R3EC.kext"
 
+clang -Wall -Wextra -Werror -std=c11 \
+  "$PROJECT_DIR/Scripts/r3ec-smoke.c" \
+  "$PROJECT_DIR/R3Control/SMCBridge.c" \
+  -framework IOKit \
+  -framework CoreFoundation \
+  -o "$PROJECT_DIR/build/r3ec-smoke"
+
 print "Built:"
 print "  $PRODUCT_DIR/R3Control.app"
 print "  $PRODUCT_DIR/R3EC.kext"
+print "  $PROJECT_DIR/build/r3ec-smoke"

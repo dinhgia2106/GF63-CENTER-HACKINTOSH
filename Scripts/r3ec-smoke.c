@@ -11,7 +11,7 @@ static void print_status(const char *label, const R3ECStatus *status) {
     printf(
         "%s firmware=%s writable=%u capabilities=0x%02x temp=%uC "
         "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u performance_raw=0x%02x "
-        "pl1=%.1fW pl2=%.1fW eco_plus=%u power_locked=%u\n",
+        "pl1=%.1fW pl2=%.1fW eco_plus=%u power_locked=%u charge_limit=%u%%\n",
         label,
         status->firmware,
         status->writable,
@@ -25,7 +25,8 @@ static void print_status(const char *label, const R3ECStatus *status) {
         status->packagePowerLimit1Deciwatts / 10.0,
         status->packagePowerLimit2Deciwatts / 10.0,
         status->ecoPlusActive,
-        status->powerLimitLocked
+        status->powerLimitLocked,
+        status->chargeLimit
     );
 }
 
@@ -46,9 +47,10 @@ int main(int argc, char **argv) {
     const bool testLiveControls = argc == 2 && strcmp(argv[1], "--test-live-controls") == 0;
     const bool testPerformance = argc == 2 && strcmp(argv[1], "--test-performance") == 0;
     const bool testEcoPlus = argc == 2 && strcmp(argv[1], "--test-eco-plus") == 0;
+    const bool testCharge = argc == 2 && strcmp(argv[1], "--test-charge") == 0;
     if (argc > 2 || (argc == 2 && !testBasic && !testControls && !testLiveControls &&
-                    !testPerformance && !testEcoPlus)) {
-        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls|--test-performance|--test-eco-plus]\n", argv[0]);
+                    !testPerformance && !testEcoPlus && !testCharge)) {
+        fprintf(stderr, "usage: %s [--test-basic|--test-controls|--test-live-controls|--test-performance|--test-eco-plus|--test-charge]\n", argv[0]);
         return 64;
     }
 
@@ -57,7 +59,7 @@ int main(int argc, char **argv) {
         R3ECClose();
         return 1;
     }
-    if (!testBasic && !testControls && !testLiveControls && !testPerformance && !testEcoPlus) {
+    if (!testBasic && !testControls && !testLiveControls && !testPerformance && !testEcoPlus && !testCharge) {
         R3ECClose();
         return 0;
     }
@@ -66,6 +68,47 @@ int main(int argc, char **argv) {
         fprintf(stderr, "write test blocked: unexpected firmware or read-only bridge\n");
         R3ECClose();
         return 2;
+    }
+
+    if (testCharge) {
+        if (!(before.capabilities & R3ECCapabilityChargeLimit)) {
+            fputs("charge-limit test blocked: bridge did not advertise charge control\n", stderr);
+            R3ECClose();
+            return 9;
+        }
+        if (before.chargeLimit != 60 && before.chargeLimit != 80 && before.chargeLimit != 100) {
+            int32_t initializeResult = R3ECApplyChargeLimit(80);
+            R3ECStatus initialized = {0};
+            const bool initializedVerified = initializeResult == kIOReturnSuccess &&
+                read_status("charge-initialized", &initialized) && initialized.chargeLimit == 80;
+            R3ECClose();
+            if (!initializedVerified) {
+                fputs("charge-limit initialization/readback failed\n", stderr);
+                return 10;
+            }
+            puts("PASS: uninitialized charge threshold was set to the Balanced 80% preset and verified.");
+            return 0;
+        }
+        const uint8_t presets[] = {60, 80, 100};
+        bool changedVerified = true;
+        for (size_t index = 0; index < sizeof(presets) / sizeof(presets[0]); ++index) {
+            int32_t chargeResult = R3ECApplyChargeLimit(presets[index]);
+            R3ECStatus changed = {0};
+            changedVerified = changedVerified && chargeResult == kIOReturnSuccess &&
+                read_status("charge-test", &changed) && changed.chargeLimit == presets[index];
+        }
+        int32_t restoreResult = R3ECApplyChargeLimit(before.chargeLimit);
+        R3ECStatus restored = {0};
+        const bool restoredVerified = restoreResult == kIOReturnSuccess &&
+            read_status("charge-restored", &restored) && restored.chargeLimit == before.chargeLimit;
+        R3ECClose();
+        if (!changedVerified || !restoredVerified) {
+            fprintf(stderr, "charge-limit verification failed (changed=%d restored=%d)\n",
+                    changedVerified, restoredVerified);
+            return 10;
+        }
+        puts("PASS: 60%, 80% and 100% were read back; the original charge limit was restored.");
+        return 0;
     }
 
     if (testPerformance) {

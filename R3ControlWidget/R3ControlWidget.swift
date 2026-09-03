@@ -70,7 +70,7 @@ struct R3StatusWidgetView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .foregroundStyle(.primary)
-            Text("\(snapshot.cpuLoad.percentText) load • \(fanText(snapshot))")
+            Text("\(snapshot.cpuLoad.percentText) CPU • \(batteryText(snapshot)) battery")
                 .font(.caption2)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
@@ -141,6 +141,7 @@ struct R3StatusWidgetView: View {
             Divider()
 
             VStack(spacing: 12) {
+                batteryRow(snapshot)
                 utilizationRow("Memory", used: snapshot.memoryUsed, total: snapshot.memoryTotal, tint: .cyan)
                 utilizationRow("Storage", used: snapshot.diskUsed, total: snapshot.diskTotal, tint: .purple)
             }
@@ -193,6 +194,22 @@ struct R3StatusWidgetView: View {
         }
     }
 
+    private func batteryRow(_ snapshot: HardwareSnapshot) -> some View {
+        let fraction = min(max(snapshot.batteryPercent ?? 0, 0), 1)
+        return VStack(spacing: 5) {
+            HStack {
+                Label("Battery", systemImage: batterySymbol(snapshot))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(batteryText(snapshot))
+                    .font(.caption.bold().monospacedDigit())
+            }
+            ProgressView(value: fraction)
+                .tint(batteryTint(snapshot))
+        }
+    }
+
     private var unavailable: some View {
         VStack(spacing: 10) {
             Image(systemName: "fan.badge.questionmark")
@@ -231,8 +248,7 @@ struct R3StatusWidgetView: View {
     }
 
     private func batteryText(_ snapshot: HardwareSnapshot) -> String {
-        guard snapshot.batteryIsConnected else { return "N/A" }
-        return snapshot.batteryPercent?.percentText ?? "—"
+        snapshot.batteryPercent?.percentText ?? "N/A"
     }
 
     private func performanceText(_ snapshot: HardwareSnapshot) -> String {
@@ -245,6 +261,14 @@ struct R3StatusWidgetView: View {
 
     private func batterySymbol(_ snapshot: HardwareSnapshot) -> String {
         snapshot.batteryIsCharging ? "battery.100percent.bolt" : "battery.75percent"
+    }
+
+    private func batteryTint(_ snapshot: HardwareSnapshot) -> Color {
+        guard let value = snapshot.batteryPercent else { return .secondary }
+        if snapshot.batteryIsCharging { return .green }
+        if value < 0.15 { return .red }
+        if value < 0.35 { return .orange }
+        return .green
     }
 
     private func normalizedTemperature(_ value: Double?) -> Double {

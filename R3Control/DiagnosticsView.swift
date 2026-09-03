@@ -41,6 +41,7 @@ struct DiagnosticsView: View {
                         availabilityRow("Package power", monitor.snapshot.cpuPackagePower != nil)
                         availabilityRow("Fan telemetry", monitor.snapshot.fanRPM != nil || monitor.snapshot.fanPercent != nil)
                         availabilityRow("Battery", monitor.snapshot.batteryPercent != nil)
+                        availabilityRow("Charge limit", monitor.chargeLimitSupported)
                         row("EC firmware", monitor.snapshot.ecFirmware ?? "R3EC not loaded", "memorychip", gateTint)
                     }
                 }
@@ -60,6 +61,12 @@ struct DiagnosticsView: View {
                             R3Theme.cyan
                         )
                         controlTile("EC writes", monitor.snapshot.controlAvailability.isWritable ? "Allowlisted" : "Blocked", "memorychip", gateTint)
+                        controlTile(
+                            "Charge limit",
+                            monitor.chargeLimit.map { "\($0)%" } ?? "Unavailable",
+                            "battery.100percent.bolt",
+                            monitor.chargeLimitSupported ? R3Theme.good : .secondary
+                        )
                         controlTile("Failure mode", "Firmware Auto", "arrow.uturn.backward.circle", R3Theme.cyan)
                     }
 

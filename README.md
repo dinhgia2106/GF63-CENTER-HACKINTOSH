@@ -10,6 +10,7 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 
 - Real AppleSMC CPU temperature and package-power monitoring.
 - CPU, memory, disk and battery status.
+- Hardware-backed 60%, 80% and 100% battery charge limits with EC read-back.
 - SwiftUI dashboard and menu-bar panel.
 - WidgetKit small, medium and large desktop widgets with live/stale status.
 - Native Liquid Glass surfaces on macOS 26 with a Material fallback on macOS 14 and 15.
@@ -25,7 +26,7 @@ The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xco
 
 See `MACHINE_AUDIT.md` for compatibility/testing guidance and `R3EC/README.md` for the OpenCore installation and recovery procedure.
 
-Version `0.2.0` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ combines Eco with Fan Auto, Boost off, a 15 W sustained/25 W burst Intel package-power limit and reduced app polling. Battery charging remains intentionally blocked.
+Version `0.2.3` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ combines Eco with Fan Auto, Boost off, a 15 W sustained/25 W burst Intel package-power limit and reduced app polling. Battery Care exposes only the verified 60%, 80% and 100% thresholds at EC `0xEF`; each change is read back before the app reports success. An EC value without the threshold-valid bit is treated as uninitialized and can be initialized only to one of those presets. Battery percentage is shown in every widget size whether or not AC power is connected; health and cycle values are explicitly marked as system-reported estimates when the firmware battery table is incomplete.
 
 ## Build
 
@@ -39,8 +40,8 @@ Scripts/build.sh
 
 ## Safety
 
-The AppleSMC bridge remains read-only. R3EC exposes no arbitrary address or MSR API: it permits only known commands, validates ranges, reads every write back, debounces sliders, and restores Auto with Cooler Boost off when the client disconnects. Eco+ refuses locked RAPL registers, saves the original package-power limit and restores it exactly on exit/disconnect. Keep a known-good EFI/USB boot entry before installing any experimental kext.
+The AppleSMC bridge remains read-only. R3EC exposes no arbitrary address or MSR API: it permits only known commands, validates ranges, reads every write back, debounces sliders, and restores Auto with Cooler Boost off when the client disconnects. Eco+ refuses locked RAPL registers, saves the original package-power limit and restores it exactly on exit/disconnect. Charge-limit writes remain restricted to exact allowlisted firmware and the three fixed threshold bytes. Keep a known-good EFI/USB boot entry before installing any experimental kext.
 
 ## Licensing
 
-Project code is provided under GPL-2.0-or-later. The AppleSMC structure layout in `SMCBridge.c` follows the public implementation used by smcFanControl. The MS-16R3 fan profile was cross-checked against [YoyPa/isw](https://github.com/YoyPa/isw).
+Project code is provided under GPL-2.0-or-later. The AppleSMC structure layout in `SMCBridge.c` follows the public implementation used by smcFanControl. The MS-16R3 fan profile was cross-checked against [YoyPa/isw](https://github.com/YoyPa/isw), and the charge-threshold layout against [BeardOverflow/msi-ec](https://github.com/BeardOverflow/msi-ec).

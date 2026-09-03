@@ -8,11 +8,12 @@ R3EC is the privileged, firmware-gated bridge used by R3 Control. It attaches to
 - Exact EC firmware allowlist: `16R3EMS1.100`, `16R3EMS1.102`.
 - Unknown or unreadable firmware: telemetry only; every write returns `kIOReturnNotPermitted`.
 
-The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Performance profiles use the firmware's verified MSI Shift values: Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ adds a bounded Intel RAPL package limit (PL1 15 W, PL2 25 W), Fan Auto and Boost off. Battery charging remains blocked.
+The user-facing fan behaviors are Auto, Silent (`0x1D`), Boost and Custom fixed speed. Boost uses the verified Cooler Boost bit, while Custom uses the fixed-speed Basic EC mode. Performance profiles use the firmware's verified MSI Shift values: Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ adds a bounded Intel RAPL package limit (PL1 15 W, PL2 25 W), Fan Auto and Boost off. Battery Care uses EC `0xEF`, with bit 7 as the threshold-valid flag and the low seven bits as the stop threshold. Only the firmware presets 60%, 80% and 100% are accepted.
 
 ## Safety behavior
 
 - Every EC write is read back and verified.
+- Charge control is exposed only on exact allowlisted firmware. An unset/invalid existing value is reported as uninitialized; writes remain restricted to `0xBC`, `0xD0` and `0xE4`.
 - Fan-mode verification masks the firmware-owned low status bits.
 - Curves are limited to six increasing 45–95°C thresholds, 35–100% output, and at least 62% at the final threshold.
 - Partial curve/fixed-speed failures return to firmware Auto.

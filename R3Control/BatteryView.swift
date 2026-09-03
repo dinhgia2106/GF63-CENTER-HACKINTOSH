@@ -3,24 +3,31 @@ import SwiftUI
 struct BatteryView: View {
     @EnvironmentObject private var monitor: HardwareMonitor
 
+    private let chargePresets = [60, 80, 100]
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 PageHeader(
                     eyebrow: "Power",
                     title: "Battery",
-                    subtitle: "Charge state and health, only when the system reports them.",
+                    subtitle: "Charge state plus system-reported battery estimates.",
                     symbol: "battery.75percent"
                 )
 
                 if monitor.snapshot.batteryPercent != nil {
                     batterySummary
+                    chargeLimitSection
                 } else {
                     unavailableCard
                 }
 
                 if let issue = telemetryIssue {
                     warningCard(issue)
+                }
+
+                if let notice = monitor.batteryTelemetryNotice {
+                    estimateCard(notice)
                 }
 
             }
@@ -30,6 +37,119 @@ struct BatteryView: View {
         }
         .scrollIndicators(.hidden)
         .navigationTitle("Battery")
+    }
+
+    private var chargeLimitSection: some View {
+        GlassSection(
+            "Charge limit",
+            subtitle: "Choose how full the battery is kept while connected to power",
+            symbol: "battery.100percent.bolt",
+            tint: R3Theme.good
+        ) {
+            HStack(spacing: 12) {
+                ForEach(chargePresets, id: \.self) { limit in
+                    chargePresetButton(limit)
+                }
+            }
+
+            if monitor.chargeLimitSupported {
+                if let activeLimit = monitor.chargeLimit {
+                    Label(
+                        "EC active: stop at \(activeLimit)% · resume below \(max(activeLimit - 10, 0))%",
+                        systemImage: "checkmark.shield.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(R3Theme.good)
+                } else {
+                    Label(
+                        "Charge threshold is not initialized. Select a preset to enable it.",
+                        systemImage: "exclamationmark.shield.fill"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(R3Theme.warning)
+                }
+            } else {
+                Label(
+                    "Charge control is unavailable because the bridge or firmware did not publish a verified threshold.",
+                    systemImage: "lock.shield.fill"
+                )
+                .font(.caption)
+                .foregroundStyle(R3Theme.warning)
+            }
+
+            Text("Lower limits reduce time spent at a high state of charge. If the battery is already above the selected limit, it will stop charging but will not be discharged by the app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func chargePresetButton(_ limit: Int) -> some View {
+        let isActive = monitor.chargeLimit == limit
+        return Button {
+            monitor.setChargeLimit(limit)
+        } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Image(systemName: chargePresetSymbol(limit))
+                        .font(.system(size: 18, weight: .semibold))
+                    Spacer()
+                    Image(systemName: isActive ? "checkmark.circle.fill" : "circle")
+                        .font(.caption)
+                }
+                Text("\(limit)%")
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(chargePresetTitle(limit)).font(.callout.weight(.semibold))
+                    Text("Recharge below \(limit - 10)%")
+                        .font(.caption2)
+                        .foregroundStyle(isActive ? .white.opacity(0.74) : .secondary)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 126, alignment: .leading)
+            .foregroundStyle(isActive ? .white : .primary)
+            .background(
+                isActive ? chargePresetTint(limit).gradient : Color.clear.gradient,
+                in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(isActive ? .white.opacity(0.18) : .primary.opacity(0.07), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(!chargeControlsEnabled)
+        .opacity(chargeControlsEnabled ? 1 : 0.58)
+    }
+
+    private var chargeControlsEnabled: Bool {
+        monitor.chargeLimitSupported && telemetryIssue == nil
+    }
+
+    private func chargePresetTitle(_ limit: Int) -> String {
+        switch limit {
+        case 60: return "Battery care"
+        case 80: return "Balanced"
+        default: return "Full capacity"
+        }
+    }
+
+    private func chargePresetSymbol(_ limit: Int) -> String {
+        switch limit {
+        case 60: return "leaf.fill"
+        case 80: return "scalemass.fill"
+        default: return "suitcase.rolling.fill"
+        }
+    }
+
+    private func chargePresetTint(_ limit: Int) -> Color {
+        switch limit {
+        case 60: return R3Theme.good
+        case 80: return R3Theme.cyan
+        default: return R3Theme.violet
+        }
     }
 
     private var batterySummary: some View {
@@ -65,8 +185,8 @@ struct BatteryView: View {
             Divider().frame(height: 150)
 
             VStack(spacing: 12) {
-                compactMetric("Health", healthText, "heart.fill", healthTint)
-                compactMetric("Cycles", cycleText, "arrow.triangle.2.circlepath", R3Theme.cyan)
+                compactMetric("Health estimate", healthText, "heart.fill", healthTint)
+                compactMetric("Cycles reported", cycleText, "arrow.triangle.2.circlepath", R3Theme.cyan)
             }
             .frame(width: 230)
         }
@@ -130,6 +250,21 @@ struct BatteryView: View {
         .r3Glass(cornerRadius: 22, tint: R3Theme.warning)
     }
 
+    private func estimateCard(_ notice: String) -> some View {
+        HStack(alignment: .top, spacing: 15) {
+            Image(systemName: "info.circle.fill")
+                .font(.title2)
+                .foregroundStyle(R3Theme.cyan)
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Battery estimates are not stable").font(.headline)
+                Text(notice).font(.callout).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(20)
+        .r3Glass(cornerRadius: 22, tint: R3Theme.cyan)
+    }
+
     private var telemetryIssue: String? {
         guard let percent = monitor.snapshot.batteryPercent else { return nil }
         guard percent.isFinite, (0...1).contains(percent) else {
@@ -177,10 +312,10 @@ struct BatteryView: View {
     }
 
     private var healthText: String {
-        monitor.snapshot.batteryHealthPercent?.percentText ?? "N/A"
+        monitor.snapshot.batteryHealthPercent.map { "~\($0.percentText)" } ?? "N/A"
     }
 
     private var cycleText: String {
-        monitor.snapshot.batteryCycleCount.map(String.init) ?? "N/A"
+        monitor.snapshot.batteryCycleCount.map { "~\($0)" } ?? "N/A"
     }
 }
