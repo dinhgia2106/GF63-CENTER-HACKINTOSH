@@ -16,6 +16,7 @@ final class HardwareMonitor: ObservableObject {
     @Published private(set) var chargeLimit: Int?
     @Published private(set) var chargeLimitSupported = false
     @Published private(set) var batteryTelemetryNotice: String?
+    @Published private(set) var batteryTelemetryIsDirect = false
 
     private let smc = SMCReader()
     private let ec = R3ECClient()
@@ -49,9 +50,17 @@ final class HardwareMonitor: ObservableObject {
         let memory = MemoryReader.sample()
         let disk = DiskReader.sample()
         let battery = BatteryReader.sample()
-        batteryTelemetryNotice = battery.telemetryNotice
         let ecResult = ec.read()
         let ecReading = ecResult.reading
+        let directBattery = ecReading?.directBattery
+        batteryTelemetryIsDirect = directBattery != nil
+        if let directBattery {
+            batteryTelemetryNotice = directBattery.cycleCount == nil
+                ? "Read-only capacity and state come directly from firmware BAT1._BIF/_BST through R3EC. This firmware does not publish a hardware cycle count, so R3 Control shows N/A instead of SMCBatteryManager's synthetic wear-based value."
+                : "Read-only values come directly from firmware BAT1._BIX/_BST through R3EC, bypassing AppleSmartBattery and SMCBatteryManager. Health remains the BMS full-charge estimate divided by design capacity."
+        } else {
+            batteryTelemetryNotice = battery.telemetryNotice
+        }
         packagePowerLimit1 = ecReading?.packagePowerLimit1
         packagePowerLimit2 = ecReading?.packagePowerLimit2
         ecoPlusActive = ecReading?.ecoPlusActive ?? false
@@ -106,11 +115,11 @@ final class HardwareMonitor: ObservableObject {
             fanRPM: ecReading?.fanRPM ?? smcFanRPM,
             performanceProfile: activePerformanceProfile ?? configuredPerformanceProfile,
             coolingMode: activeCoolingMode ?? configuredCoolingMode,
-            batteryPercent: battery.percent,
-            batteryIsCharging: battery.isCharging,
+            batteryPercent: directBattery?.percent ?? battery.percent,
+            batteryIsCharging: directBattery?.isCharging ?? battery.isCharging,
             batteryIsConnected: battery.isConnected,
-            batteryHealthPercent: battery.healthPercent,
-            batteryCycleCount: battery.cycleCount,
+            batteryHealthPercent: directBattery?.healthPercent ?? battery.healthPercent,
+            batteryCycleCount: directBattery != nil ? directBattery?.cycleCount : battery.cycleCount,
             ecFirmware: ecReading?.firmware,
             controlAvailability: availability
         )

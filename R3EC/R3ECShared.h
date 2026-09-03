@@ -40,7 +40,8 @@ enum R3ECCapability : uint32_t {
     R3ECCapabilityCoolerBoost = 1u << 4,
     R3ECCapabilityChargeLimit = 1u << 5,
     R3ECCapabilityPerformanceProfile = 1u << 6,
-    R3ECCapabilityEcoPlus = 1u << 7
+    R3ECCapabilityEcoPlus = 1u << 7,
+    R3ECCapabilityDirectBattery = 1u << 8
 };
 
 typedef struct __attribute__((packed)) {
@@ -59,6 +60,16 @@ typedef struct __attribute__((packed)) {
     uint16_t packagePowerLimit2Deciwatts;
     uint8_t ecoPlusActive;
     uint8_t powerLimitLocked;
+    uint8_t batteryDataValid;
+    uint8_t batteryPowerUnit;
+    uint16_t batteryCycleCount;
+    uint32_t batteryDesignCapacity;
+    uint32_t batteryLastFullChargeCapacity;
+    uint32_t batteryRemainingCapacity;
+    uint32_t batteryPresentRate;
+    uint32_t batteryPresentVoltage;
+    uint32_t batteryState;
+    uint8_t batteryCycleCountValid;
 } R3ECStatus;
 
 typedef struct __attribute__((packed)) {

@@ -41,6 +41,12 @@ struct DiagnosticsView: View {
                         availabilityRow("Package power", monitor.snapshot.cpuPackagePower != nil)
                         availabilityRow("Fan telemetry", monitor.snapshot.fanRPM != nil || monitor.snapshot.fanPercent != nil)
                         availabilityRow("Battery", monitor.snapshot.batteryPercent != nil)
+                        row(
+                            "Battery source",
+                            monitor.batteryTelemetryIsDirect ? "BAT1 firmware" : "macOS fallback",
+                            "battery.75percent",
+                            monitor.batteryTelemetryIsDirect ? R3Theme.good : R3Theme.warning
+                        )
                         availabilityRow("Charge limit", monitor.chargeLimitSupported)
                         row("EC firmware", monitor.snapshot.ecFirmware ?? "R3EC not loaded", "memorychip", gateTint)
                     }

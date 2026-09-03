@@ -29,12 +29,24 @@ public:
 
 private:
     IOACPIPlatformDevice *ecDevice { nullptr };
+    IOACPIPlatformDevice *batteryDevice { nullptr };
     IOLock *lock { nullptr };
     char firmware[16] {};
     bool firmwareAllowed { false };
     bool powerLimitCaptured { false };
     bool ecoPlusActive { false };
     uint64_t originalPackagePowerLimit { 0 };
+    uint8_t batteryRefreshCountdown { 0 };
+    bool batteryDataValid { false };
+    uint8_t batteryPowerUnit { 0 };
+    bool batteryCycleCountValid { false };
+    uint16_t batteryCycleCount { 0 };
+    uint32_t batteryDesignCapacity { 0 };
+    uint32_t batteryLastFullChargeCapacity { 0 };
+    uint32_t batteryRemainingCapacity { 0 };
+    uint32_t batteryPresentRate { 0 };
+    uint32_t batteryPresentVoltage { 0 };
+    uint32_t batteryState { 0 };
 
     IOReturn readByte(uint8_t address, uint8_t *value);
     IOReturn writeByteVerified(uint8_t address, uint8_t value);
@@ -43,6 +55,8 @@ private:
                                     bool *locked);
     bool readFirmware();
     bool isAllowedFirmware() const;
+    bool locateBattery();
+    bool readDirectBattery();
 };
 
 class R3ECUserClient : public IOUserClient {

@@ -27,7 +27,7 @@ struct BatteryView: View {
                 }
 
                 if let notice = monitor.batteryTelemetryNotice {
-                    estimateCard(notice)
+                    sourceCard(notice)
                 }
 
             }
@@ -250,13 +250,14 @@ struct BatteryView: View {
         .r3Glass(cornerRadius: 22, tint: R3Theme.warning)
     }
 
-    private func estimateCard(_ notice: String) -> some View {
+    private func sourceCard(_ notice: String) -> some View {
         HStack(alignment: .top, spacing: 15) {
             Image(systemName: "info.circle.fill")
                 .font(.title2)
                 .foregroundStyle(R3Theme.cyan)
             VStack(alignment: .leading, spacing: 5) {
-                Text("Battery estimates are not stable").font(.headline)
+                Text(monitor.batteryTelemetryIsDirect ? "Direct firmware telemetry" : "Battery estimates are not stable")
+                    .font(.headline)
                 Text(notice).font(.callout).foregroundStyle(.secondary)
             }
             Spacer()
@@ -316,6 +317,8 @@ struct BatteryView: View {
     }
 
     private var cycleText: String {
-        monitor.snapshot.batteryCycleCount.map { "~\($0)" } ?? "N/A"
+        monitor.snapshot.batteryCycleCount.map {
+            monitor.batteryTelemetryIsDirect ? String($0) : "~\($0)"
+        } ?? "N/A"
     }
 }

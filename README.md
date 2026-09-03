@@ -10,6 +10,7 @@ Native macOS control center for the MSI GF63 Hackintosh community.
 
 - Real AppleSMC CPU temperature and package-power monitoring.
 - CPU, memory, disk and battery status.
+- Direct read-only battery telemetry from firmware `BAT1._BIX` or `_BIF`, plus `_BST`, with a macOS fallback.
 - Hardware-backed 60%, 80% and 100% battery charge limits with EC read-back.
 - SwiftUI dashboard and menu-bar panel.
 - WidgetKit small, medium and large desktop widgets with live/stale status.
@@ -26,7 +27,7 @@ The editable vector icon source is stored at `R3Control/Assets/AppIcon.svg`; Xco
 
 See `MACHINE_AUDIT.md` for compatibility/testing guidance and `R3EC/README.md` for the OpenCore installation and recovery procedure.
 
-Version `0.2.3` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ combines Eco with Fan Auto, Boost off, a 15 W sustained/25 W burst Intel package-power limit and reduced app polling. Battery Care exposes only the verified 60%, 80% and 100% thresholds at EC `0xEF`; each change is read back before the app reports success. An EC value without the threshold-valid bit is treated as uninitialized and can be initialized only to one of those presets. Battery percentage is shown in every widget size whether or not AC power is connected; health and cycle values are explicitly marked as system-reported estimates when the firmware battery table is incomplete.
+Version `0.2.5` performs real EC control only when `R3EC.kext` reads an exact `16R3EMS1.100` or `16R3EMS1.102` firmware match. Unknown firmware remains telemetry-only. The performance values are Eco `0xC2`, Comfort `0xC1`, Sport `0xC0` and Turbo `0xC4`. Eco+ combines Eco with Fan Auto, Boost off, a 15 W sustained/25 W burst Intel package-power limit and reduced app polling. Battery Care exposes only the verified 60%, 80% and 100% thresholds at EC `0xEF`; each change is read back before the app reports success. An EC value without the threshold-valid bit is treated as uninitialized and can be initialized only to one of those presets. R3EC reads capacity, state, rate and voltage directly from the firmware `BAT1._BIF/_BST` packages on MS-16R3. Because this firmware has no `_BIX` cycle-count field, the app reports cycle count as unavailable instead of copying SMCBatteryManager's synthetic wear-based value. AppleSmartBattery is used only as a fallback when direct firmware telemetry is invalid. Battery percentage is shown in every widget size whether or not AC power is connected.
 
 ## Build
 

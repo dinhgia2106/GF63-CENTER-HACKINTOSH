@@ -11,7 +11,8 @@ static void print_status(const char *label, const R3ECStatus *status) {
     printf(
         "%s firmware=%s writable=%u capabilities=0x%02x temp=%uC "
         "fan=%u%% rpm=%u mode_raw=0x%02x boost=%u performance_raw=0x%02x "
-        "pl1=%.1fW pl2=%.1fW eco_plus=%u power_locked=%u charge_limit=%u%%\n",
+        "pl1=%.1fW pl2=%.1fW eco_plus=%u power_locked=%u charge_limit=%u%% "
+        "battery_direct=%u battery=%u/%u cycle_valid=%u cycle=%u state=0x%x rate=%u voltage=%u\n",
         label,
         status->firmware,
         status->writable,
@@ -26,7 +27,15 @@ static void print_status(const char *label, const R3ECStatus *status) {
         status->packagePowerLimit2Deciwatts / 10.0,
         status->ecoPlusActive,
         status->powerLimitLocked,
-        status->chargeLimit
+        status->chargeLimit,
+        status->batteryDataValid,
+        status->batteryRemainingCapacity,
+        status->batteryLastFullChargeCapacity,
+        status->batteryCycleCountValid,
+        status->batteryCycleCount,
+        status->batteryState,
+        status->batteryPresentRate,
+        status->batteryPresentVoltage
     );
 }
 

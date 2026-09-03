@@ -14,7 +14,7 @@ OSDefineMetaClassAndStructors(R3ECUserClient, IOUserClient)
 #undef super
 
 namespace {
-constexpr uint32_t kProtocolVersion = 3;
+constexpr uint32_t kProtocolVersion = 5;
 constexpr uint8_t kFirmwareStart = 0xA0;
 constexpr size_t kFirmwareLength = 12;
 constexpr uint8_t kCPUCurrentTemperature = 0x68;
@@ -50,9 +50,24 @@ constexpr uint64_t kPowerLimit1Lock = 1ULL << 31;
 constexpr uint64_t kPackagePowerLimitLock = 1ULL << 63;
 constexpr uint16_t kEcoPlusPL1Watts = 15;
 constexpr uint16_t kEcoPlusPL2Watts = 25;
+constexpr uint32_t kACPIUnknownValue = 0xFFFFFFFFU;
+constexpr unsigned int kBIXMinimumCount = 9;
+constexpr unsigned int kBIFMinimumCount = 3;
+constexpr unsigned int kBSTMinimumCount = 4;
+constexpr uint8_t kBatteryRefreshInterval = 15;
 
 bool equalFirmware(const char *lhs, const char *rhs) {
     return strncmp(lhs, rhs, 15) == 0;
+}
+
+bool arrayUInt32(OSArray *array, unsigned int index, uint32_t *value) {
+    if (!array || !value || index >= array->getCount()) return false;
+    auto number = OSDynamicCast(OSNumber, array->getObject(index));
+    if (!number) return false;
+    const uint64_t raw = number->unsigned64BitValue();
+    if (raw > UINT32_MAX || raw == kACPIUnknownValue) return false;
+    *value = static_cast<uint32_t>(raw);
+    return true;
 }
 
 }
@@ -70,6 +85,7 @@ bool R3ECBridge::start(IOService *provider) {
         IOLog("R3EC: could not read EC firmware; bridge stays read-only\n");
     }
     firmwareAllowed = isAllowedFirmware();
+    locateBattery();
     setProperty("firmware", firmware);
     setProperty("writable", firmwareAllowed);
     setProperty("board", "MS-16R3");
@@ -96,6 +112,10 @@ void R3ECBridge::free() {
     if (ecDevice) {
         ecDevice->release();
         ecDevice = nullptr;
+    }
+    if (batteryDevice) {
+        batteryDevice->release();
+        batteryDevice = nullptr;
     }
     IOService::free();
 }
@@ -191,12 +211,110 @@ bool R3ECBridge::isAllowedFirmware() const {
     return equalFirmware(firmware, "16R3EMS1.100") || equalFirmware(firmware, "16R3EMS1.102");
 }
 
+bool R3ECBridge::locateBattery() {
+    if (batteryDevice) return true;
+    if (!ecDevice) return false;
+    auto children = ecDevice->getChildIterator(gIOACPIPlane);
+    if (!children) return false;
+    while (auto object = children->getNextObject()) {
+        auto device = OSDynamicCast(IOACPIPlatformDevice, object);
+        if (!device) continue;
+        const char *name = device->getName(gIOACPIPlane);
+        if (name && strcmp(name, "BAT1") == 0) {
+            device->retain();
+            batteryDevice = device;
+            setProperty("battery-source", "BAT1 detected");
+            return true;
+        }
+    }
+    return false;
+}
+
+bool R3ECBridge::readDirectBattery() {
+    if (!locateBattery()) return false;
+
+    OSObject *bixObject = nullptr;
+    IOReturn result = batteryDevice->evaluateObject("_BIX", &bixObject);
+    auto bix = OSDynamicCast(OSArray, bixObject);
+    uint32_t powerUnit = 0, design = 0, full = 0, cycle = 0;
+    bool infoValid = result == kIOReturnSuccess && bix && bix->getCount() >= kBIXMinimumCount &&
+        arrayUInt32(bix, 1, &powerUnit) && powerUnit <= 1 &&
+        arrayUInt32(bix, 2, &design) && design > 0 &&
+        arrayUInt32(bix, 3, &full) && full > 0 &&
+        arrayUInt32(bix, 8, &cycle) && cycle <= UINT16_MAX;
+    if (bixObject) bixObject->release();
+
+    bool cycleValid = infoValid;
+    if (!infoValid) {
+        OSObject *bifObject = nullptr;
+        result = batteryDevice->evaluateObject("_BIF", &bifObject);
+        auto bif = OSDynamicCast(OSArray, bifObject);
+        infoValid = result == kIOReturnSuccess && bif && bif->getCount() >= kBIFMinimumCount &&
+            arrayUInt32(bif, 0, &powerUnit) && powerUnit <= 1 &&
+            arrayUInt32(bif, 1, &design) && design > 0 &&
+            arrayUInt32(bif, 2, &full) && full > 0;
+        if (bifObject) bifObject->release();
+        cycle = 0;
+        cycleValid = false;
+    }
+
+    OSObject *bstObject = nullptr;
+    result = batteryDevice->evaluateObject("_BST", &bstObject);
+    auto bst = OSDynamicCast(OSArray, bstObject);
+    uint32_t state = 0, rate = 0, remaining = 0, voltage = 0;
+    const bool bstValid = result == kIOReturnSuccess && bst && bst->getCount() >= kBSTMinimumCount &&
+        arrayUInt32(bst, 0, &state) &&
+        arrayUInt32(bst, 1, &rate) &&
+        arrayUInt32(bst, 2, &remaining) &&
+        arrayUInt32(bst, 3, &voltage);
+    if (bstObject) bstObject->release();
+
+    if (!infoValid || !bstValid) {
+        batteryDataValid = false;
+        return false;
+    }
+    batteryPowerUnit = static_cast<uint8_t>(powerUnit);
+    batteryDesignCapacity = design;
+    batteryLastFullChargeCapacity = full;
+    batteryCycleCount = static_cast<uint16_t>(cycle);
+    batteryCycleCountValid = cycleValid;
+    batteryState = state;
+    batteryPresentRate = rate;
+    batteryRemainingCapacity = remaining;
+    batteryPresentVoltage = voltage;
+    batteryDataValid = true;
+    setProperty("battery-source", cycleValid ? "BAT1._BIX/_BST" : "BAT1._BIF/_BST");
+    if (cycleValid) setProperty("battery-cycle-count", cycle, 32);
+    setProperty("battery-design-capacity", design, 32);
+    setProperty("battery-full-charge-capacity", full, 32);
+    return true;
+}
+
 IOReturn R3ECBridge::getStatus(R3ECStatus *status) {
     if (!status) return kIOReturnBadArgument;
     IOLockLock(lock);
     bzero(status, sizeof(*status));
     status->protocolVersion = kProtocolVersion;
     status->capabilities = R3ECCapabilityTelemetry;
+    if (batteryRefreshCountdown == 0) {
+        readDirectBattery();
+        batteryRefreshCountdown = kBatteryRefreshInterval;
+    } else {
+        --batteryRefreshCountdown;
+    }
+    if (batteryDataValid) {
+        status->capabilities |= R3ECCapabilityDirectBattery;
+        status->batteryDataValid = 1;
+        status->batteryPowerUnit = batteryPowerUnit;
+        status->batteryCycleCount = batteryCycleCount;
+        status->batteryDesignCapacity = batteryDesignCapacity;
+        status->batteryLastFullChargeCapacity = batteryLastFullChargeCapacity;
+        status->batteryRemainingCapacity = batteryRemainingCapacity;
+        status->batteryPresentRate = batteryPresentRate;
+        status->batteryPresentVoltage = batteryPresentVoltage;
+        status->batteryState = batteryState;
+        status->batteryCycleCountValid = batteryCycleCountValid;
+    }
     if (firmwareAllowed) {
         status->capabilities |= R3ECCapabilityFanMode | R3ECCapabilityFixedFan |
             R3ECCapabilityFanCurve | R3ECCapabilityCoolerBoost |

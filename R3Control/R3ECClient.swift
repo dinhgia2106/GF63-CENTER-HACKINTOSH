@@ -1,5 +1,16 @@
 import Foundation
 
+struct R3DirectBatteryReading: Sendable {
+    let percent: Double
+    let healthPercent: Double
+    let cycleCount: Int?
+    let isCharging: Bool
+    let isDischarging: Bool
+    let presentRate: UInt32
+    let voltage: UInt32
+    let powerUnit: UInt8
+}
+
 struct R3ECReading: Sendable {
     let firmware: String
     let cpuTemperature: Double?
@@ -14,6 +25,7 @@ struct R3ECReading: Sendable {
     let powerLimitLocked: Bool
     let chargeLimit: Int?
     let chargeLimitSupported: Bool
+    let directBattery: R3DirectBatteryReading?
     let writable: Bool
 }
 
@@ -21,10 +33,35 @@ final class R3ECClient {
     func read() -> (reading: R3ECReading?, result: Int32) {
         var raw = R3ECStatus()
         let result = R3ECReadStatus(&raw)
-        guard result == 0, (1...3).contains(raw.protocolVersion) else { return (nil, result) }
+        guard result == 0, (1...5).contains(raw.protocolVersion) else { return (nil, result) }
 
         let firmware = withUnsafeBytes(of: &raw.firmware) { bytes in
             String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        let directBattery: R3DirectBatteryReading?
+        if raw.protocolVersion >= 4,
+           raw.batteryDataValid != 0,
+           raw.batteryLastFullChargeCapacity > 0,
+           raw.batteryDesignCapacity > 0 {
+            directBattery = R3DirectBatteryReading(
+                percent: min(max(
+                    Double(raw.batteryRemainingCapacity) / Double(raw.batteryLastFullChargeCapacity),
+                    0
+                ), 1),
+                healthPercent: min(max(
+                    Double(raw.batteryLastFullChargeCapacity) / Double(raw.batteryDesignCapacity),
+                    0
+                ), 1),
+                cycleCount: raw.protocolVersion >= 5 && raw.batteryCycleCountValid != 0
+                    ? Int(raw.batteryCycleCount) : nil,
+                isCharging: (raw.batteryState & 0x02) != 0,
+                isDischarging: (raw.batteryState & 0x01) != 0,
+                presentRate: raw.batteryPresentRate,
+                voltage: raw.batteryPresentVoltage,
+                powerUnit: raw.batteryPowerUnit
+            )
+        } else {
+            directBattery = nil
         }
         let reading = R3ECReading(
             firmware: firmware,
@@ -42,6 +79,7 @@ final class R3ECClient {
             powerLimitLocked: raw.powerLimitLocked != 0,
             chargeLimit: raw.chargeLimit > 0 ? Int(raw.chargeLimit) : nil,
             chargeLimitSupported: (raw.capabilities & (1 << 5)) != 0,
+            directBattery: directBattery,
             writable: raw.writable != 0
         )
         return (reading, result)

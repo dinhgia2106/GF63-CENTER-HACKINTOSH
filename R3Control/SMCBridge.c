@@ -203,8 +203,11 @@ int32_t R3ECReadStatus(R3ECStatus *status) {
         );
         const size_t version1Size = offsetof(R3ECStatus, performanceProfileRaw);
         const size_t version2Size = offsetof(R3ECStatus, packagePowerLimit1Deciwatts);
+        const size_t version3Size = offsetof(R3ECStatus, batteryDataValid);
+        const size_t version4Size = offsetof(R3ECStatus, batteryCycleCountValid);
         if (result == KERN_SUCCESS && outputSize != sizeof(*status) &&
-            outputSize != version1Size && outputSize != version2Size) {
+            outputSize != version1Size && outputSize != version2Size && outputSize != version3Size &&
+            outputSize != version4Size) {
             result = kIOReturnBadMessageID;
         }
     }
